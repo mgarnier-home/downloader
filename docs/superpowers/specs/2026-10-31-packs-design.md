@@ -85,7 +85,7 @@ Une archive chiffrée renvoie `ErrPassword`.
   `Finish`, sans le contrôle « destination présente » ni le `rename` habituels. Le `.part` n'est
   supprimé qu'en cas de succès.
 - `Finish` reçoit en plus un rappel de progression `func(done, total int64)`, ignoré par la musique.
-  Pendant l'extraction, la progression du transfert repart de 0 sur la taille totale des vidéos.
+  Pendant l'extraction, la progression du transfert repart de 0 sur la taille des vidéos à extraire.
 - `FileView` gagne le champ `phase` : vide, ou `extraction` pendant l'extraction d'un pack.
 
 ### Traitement d'un pack (`finisher.pack`)
@@ -94,8 +94,8 @@ Le nom de la série est le second segment de `f.Dest` (`series/<Nom>`).
 
 1. **Inventaire** (premier passage de `Walk`) : on garde les entrées dont l'extension est `.mkv`,
    `.mp4`, `.avi`, `.m4v` ou `.ts`. Aucune vidéo : erreur « Aucune vidéo dans l'archive ». Si
-   l'espace libre de la médiathèque est inférieur au total des vidéos : erreur « Espace insuffisant
-   pour extraire », avant toute écriture.
+   l'espace libre de la médiathèque est inférieur à la taille des vidéos restant à extraire
+   (destination absente) : erreur « Espace insuffisant pour extraire », avant toute écriture.
 2. **Destination** de chaque vidéo, d'après `ParseFilename` sur le nom du fichier (sans ses
    dossiers) :
    - avec un épisode : `naming.VideoPath(Series, <Nom>, saison, épisode, ext)` ;
@@ -106,7 +106,8 @@ Le nom de la série est le second segment de `f.Dest` (`series/<Nom>`).
 3. **Extraction** (second passage de `Walk`) : chaque vidéo est écrite dans
    `download/<id>/<n>.tmp`, `n` étant son rang ; le chemin de l'entrée n'est jamais utilisé comme
    chemin d'écriture, ce qui écarte les entrées du type `../evil.mkv`. Elle est ensuite déplacée à
-   sa destination, dossiers créés au besoin. Si la destination existe déjà, ou a déjà servi dans ce
+   sa destination par un lien physique, qui échoue si une autre extraction l'a rangée entre-temps,
+   dossiers créés au besoin. Si la destination existe déjà, ou a déjà servi dans ce
    pack (même épisode en 720p et en 1080p), la vidéo est comptée « déjà présente » et supprimée.
    Rien n'est écrasé.
 4. **Fin** : `meta` devient `{"pack":{"placed":N,"present":N,"bonus":N}}` (`placed` compte les

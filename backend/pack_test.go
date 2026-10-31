@@ -122,7 +122,7 @@ func TestPackPlaces(t *testing.T) {
 	if n, ok := fz.index.Lookup(naming.Series, 42); !ok || n != "BreakingBad" {
 		t.Errorf("index : %q %v", n, ok)
 	}
-	if want := int64(len("e1s2e1makingnouveaudoublon")); done != want || total != want {
+	if want := int64(len("e1s2e1making")); done != want || total != want { // seules les vidéos extraites comptent
 		t.Errorf("progression %d / %d, attendu %d", done, total, want)
 	}
 	fz.noTemp(t, f.ID)
@@ -212,4 +212,55 @@ func readFile(t *testing.T, p string) []byte {
 		t.Fatal(err)
 	}
 	return b
+}
+
+// Reprise après un arrêt : seules les vidéos absentes comptent pour l'espace libre.
+func TestPackResumeNeedsOnlyRemaining(t *testing.T) {
+	fz := newFinisher(t)
+	j, f := fz.addPack(t)
+	fz.put(t, "series/BreakingBad/S01/BreakingBad.S01.E01.mkv", "ancien")
+	fz.free = func(string) (int64, error) { return 10, nil }
+	part := zipPack(t, 0, entry{"Breaking.Bad.S01E01.mkv", strings.Repeat("x", 100)}, entry{"Breaking.Bad.S01E02.mkv", "e2"})
+	if err := fz.pack(context.Background(), f, j, part, func(int64, int64) {}); err != nil {
+		t.Fatal(err)
+	}
+	if m := fz.meta(t, f.ID); m != `{"pack":{"placed":1,"present":1,"bonus":0}}` {
+		t.Errorf("meta = %s", m)
+	}
+}
+
+func TestPackAllPresentDiskFull(t *testing.T) {
+	fz := newFinisher(t)
+	j, f := fz.addPack(t)
+	fz.put(t, "series/BreakingBad/S01/BreakingBad.S01.E01.mkv", "ancien")
+	fz.free = func(string) (int64, error) { return 0, nil }
+	part := zipPack(t, 0, entry{"Breaking.Bad.S01E01.mkv", "e1"})
+	if err := fz.pack(context.Background(), f, j, part, func(int64, int64) {}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Une autre extraction range le même épisode pendant la copie : il n'est pas écrasé.
+func TestPackNoOverwriteRace(t *testing.T) {
+	fz := newFinisher(t)
+	j, f := fz.addPack(t)
+	part := zipPack(t, 0, entry{"Breaking.Bad.S01E01.mkv", "e1"})
+	dest := "series/BreakingBad/S01/BreakingBad.S01.E01.mkv"
+	raced := false
+	progress := func(done, _ int64) {
+		if done > 0 && !raced {
+			raced = true
+			fz.put(t, dest, "autre")
+		}
+	}
+	if err := fz.pack(context.Background(), f, j, part, progress); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(readFile(t, filepath.Join(fz.mediaDir, dest))); got != "autre" {
+		t.Errorf("épisode écrasé : %q", got)
+	}
+	if m := fz.meta(t, f.ID); m != `{"pack":{"placed":0,"present":1,"bonus":0}}` {
+		t.Errorf("meta = %s", m)
+	}
+	fz.noTemp(t, f.ID)
 }

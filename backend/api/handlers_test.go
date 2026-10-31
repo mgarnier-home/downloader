@@ -558,3 +558,32 @@ func TestHistoryPack(t *testing.T) {
 		t.Errorf("bilan sur un épisode : %+v", p)
 	}
 }
+
+func TestReplacePack(t *testing.T) {
+	e := newEnv(t)
+	_, files, err := e.h.Store.CreateJob(store.Job{Kind: naming.Series, Title: "Breaking Bad"}, []store.File{
+		{Source: "fake", Input: "https://h/old.rar", OriginalName: "Breaking.Bad.S01.rar", Size: 10, Dest: "series/BreakingBad", Meta: `{"pack":{}}`},
+		{Source: "fake", Input: "https://h/old.mkv", OriginalName: "Breaking.Bad.S01E01.mkv", Size: 10, Dest: "series/BreakingBad/S01/BreakingBad.S01.E01.mkv"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		_ = e.h.Store.SetState(f.ID, store.StateError, "lien mort")
+	}
+	replace := func(id int64, input string) *httptest.ResponseRecorder {
+		return e.do(http.MethodPost, "/api/files/"+itoa(id)+"/replace", `{"input":"`+input+`"}`)
+	}
+	for id, input := range map[int64]string{files[0].ID: "https://h/ep.mkv", files[1].ID: "https://h/pack.rar"} {
+		rec := replace(id, input)
+		if rec.Code != http.StatusBadRequest || decode[ErrorBody](t, rec).Error != "Un pack ne se remplace que par un pack" {
+			t.Errorf("%s : %d %s", input, rec.Code, rec.Body)
+		}
+	}
+	if rec := replace(files[0].ID, "https://h/Breaking.Bad.S01.v2.zip"); rec.Code != http.StatusNoContent {
+		t.Fatalf("pack par pack : %d %s", rec.Code, rec.Body)
+	}
+	if f := e.files()[0]; f.Dest != "series/BreakingBad" || f.OriginalName != "Breaking.Bad.S01.v2.zip" {
+		t.Errorf("pack remplacé : %+v", f)
+	}
+}

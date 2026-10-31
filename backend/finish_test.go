@@ -107,3 +107,13 @@ func TestFinishCoverErrorHidesURL(t *testing.T) {
 		t.Errorf("erreur : %v", err)
 	}
 }
+
+// Une archive rattachée à un film (fichier antérieur aux packs) n'est pas « rangée » sans rien faire.
+func TestFinishPackNotSeries(t *testing.T) {
+	fz := newFinisher(t)
+	f := fz.addFile(t, store.Job{Kind: naming.Movie}, store.File{OriginalName: "Film.2020.rar", Dest: "films/Film/Film.rar"})
+	err := fz.finish(context.Background(), f, "inutile", nil)
+	if err == nil || err.Error() != "Un pack doit être rangé comme une série" {
+		t.Fatalf("err = %v", err)
+	}
+}

@@ -399,8 +399,13 @@ func (h *Handlers) replacement(ctx context.Context, f store.File, input string) 
 	if !items[0].Online {
 		return f, &httpError{http.StatusBadRequest, cmp.Or(items[0].Error, "Lien hors ligne")}
 	}
-	f.Input, f.OriginalName, f.Size = input, cmp.Or(items[0].Name, f.OriginalName), items[0].Size
-	if ext := path.Ext(f.OriginalName); ext != "" && ext != path.Ext(f.Dest) {
+	name := cmp.Or(items[0].Name, f.OriginalName)
+	pack := naming.IsPack(f.OriginalName)
+	if pack != naming.IsPack(name) {
+		return f, &httpError{http.StatusBadRequest, "Un pack ne se remplace que par un pack"}
+	}
+	f.Input, f.OriginalName, f.Size = input, name, items[0].Size
+	if ext := path.Ext(f.OriginalName); !pack && ext != "" && ext != path.Ext(f.Dest) { // un pack garde son dossier
 		f.Dest = strings.TrimSuffix(f.Dest, path.Ext(f.Dest)) + ext
 		if _, err := naming.Within(h.MediaDir, f.Dest); err != nil {
 			return f, &httpError{http.StatusBadRequest, "Destination invalide : " + f.Dest}

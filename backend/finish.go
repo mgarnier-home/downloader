@@ -40,7 +40,10 @@ func (fz *finisher) finish(ctx context.Context, f store.File, part string, progr
 		return err
 	}
 	j := jobs[f.JobID]
-	if naming.IsPack(f.OriginalName) && j.Kind == naming.Series {
+	if naming.IsPack(f.OriginalName) { // même critère que la file, qui supprime le .part après succès
+		if j.Kind != naming.Series {
+			return errors.New("Un pack doit être rangé comme une série") //nolint:staticcheck // message affiché tel quel
+		}
 		return fz.pack(ctx, f, j, part, progress)
 	}
 	if j.Kind == naming.Music {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -22,27 +23,26 @@ import (
 // shortcut: un arrêt pendant l'extraction la relance entière ; les épisodes déjà rangés comptent
 // alors en déjà présents, reprise fine si le besoin apparaît.
 func (fz *finisher) pack(ctx context.Context, f store.File, j store.Job, part string, progress func(done, total int64)) error {
-	total, err := inventory(part)
-	if err != nil {
+	run := &packRun{
+		ctx: ctx, mediaDir: fz.mediaDir, name: strings.TrimPrefix(f.Dest, "series/"),
+		season: naming.ParseFilename(f.OriginalName).Season, progress: progress,
+		tmp: filepath.Join(fz.mediaDir, "download", strconv.FormatInt(f.ID, 10)), used: map[string]bool{},
+	}
+	if err := run.inventory(part); err != nil {
 		return err
 	}
 	free, err := fz.freeBytes()
 	if err != nil {
 		return fmt.Errorf("Extraction : %w", err) //nolint:staticcheck // message affiché tel quel
 	}
-	if free < total {
+	if free < run.total {
 		return errors.New("Espace insuffisant pour extraire") //nolint:staticcheck // message affiché tel quel
-	}
-	run := &packRun{
-		ctx: ctx, mediaDir: fz.mediaDir, name: strings.TrimPrefix(f.Dest, "series/"),
-		season: naming.ParseFilename(f.OriginalName).Season, total: total, progress: progress,
-		tmp: filepath.Join(fz.mediaDir, "download", strconv.FormatInt(f.ID, 10)), used: map[string]bool{},
 	}
 	defer func() { _ = os.RemoveAll(run.tmp) }()
 	if err := os.MkdirAll(run.tmp, 0o755); err != nil {
 		return fmt.Errorf("Extraction : %w", err) //nolint:staticcheck // message affiché tel quel
 	}
-	progress(0, total)
+	progress(0, run.total)
 	if err := archive.Walk(part, run.entry); err != nil {
 		if errors.Is(err, archive.ErrPassword) {
 			return archiveError(err)
@@ -62,24 +62,32 @@ func (fz *finisher) pack(ctx context.Context, f store.File, j store.Job, part st
 	return nil
 }
 
-// inventory renvoie la taille totale des vidéos de l'archive, sans les lire.
-func inventory(part string) (int64, error) {
-	var total int64
+// inventory compte les vidéos et la taille de celles qui restent à extraire (destination absente,
+// pas déjà servie) : une reprise après un arrêt ne demande que la place du reste.
+func (p *packRun) inventory(part string) error {
 	videos := 0
+	seen := map[string]bool{}
 	err := archive.Walk(part, func(e archive.Entry, _ io.Reader) error {
-		if naming.IsVideo(e.Path) {
-			total += e.Size
-			videos++
+		if !naming.IsVideo(e.Path) {
+			return nil
 		}
+		videos++
+		dest, _ := naming.PackDest(p.name, e.Path, p.season)
+		if abs, err := naming.Within(p.mediaDir, dest); err == nil && !seen[dest] {
+			if _, err := os.Stat(abs); err != nil {
+				p.total += e.Size
+			}
+		}
+		seen[dest] = true
 		return nil
 	})
 	if err != nil {
-		return 0, archiveError(err)
+		return archiveError(err)
 	}
 	if videos == 0 {
-		return 0, errors.New("Aucune vidéo dans l'archive") //nolint:staticcheck // message affiché tel quel
+		return errors.New("Aucune vidéo dans l'archive") //nolint:staticcheck // message affiché tel quel
 	}
-	return total, nil
+	return nil
 }
 
 // packRun est l'état d'une extraction : destinations servies, octets traités, bilan.
@@ -105,8 +113,6 @@ func (p *packRun) entry(e archive.Entry, r io.Reader) error {
 	}
 	if _, err := os.Stat(abs); p.used[dest] || err == nil {
 		p.report.Present++
-		p.done += e.Size
-		p.progress(p.done, p.total)
 		return nil
 	}
 	p.used[dest] = true
@@ -117,8 +123,13 @@ func (p *packRun) entry(e archive.Entry, r io.Reader) error {
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
 		return err
 	}
-	if err := os.Rename(tmp, abs); err != nil {
+	placed, err := place(tmp, abs)
+	if err != nil {
 		return err
+	}
+	if !placed {
+		p.report.Present++
+		return nil
 	}
 	if bonus {
 		p.report.Bonus++
@@ -126,6 +137,20 @@ func (p *packRun) entry(e archive.Entry, r io.Reader) error {
 		p.report.Placed++
 	}
 	return nil
+}
+
+// place range tmp en abs sans jamais écraser : le lien échoue si une autre extraction a rangé abs
+// entre-temps. Faux si abs existait déjà.
+func place(tmp, abs string) (bool, error) {
+	err := os.Link(tmp, abs)
+	if errors.Is(err, fs.ErrExist) {
+		return false, os.Remove(tmp)
+	}
+	if err != nil {
+		// shortcut: système de fichiers sans liens physiques : renommage, sans garde contre une course.
+		return true, os.Rename(tmp, abs)
+	}
+	return true, os.Remove(tmp)
 }
 
 func archiveError(err error) error {
