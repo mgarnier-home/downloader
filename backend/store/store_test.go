@@ -88,11 +88,12 @@ func TestReplaceAndAttempts(t *testing.T) {
 	id := newJob(t, s, "a")[0].ID
 	_ = s.IncAttempts(id)
 	_ = s.SetState(id, StateError, "boom")
-	if err := s.Replace(id, "http://new"); err != nil {
+	if err := s.Replace(id, "http://new", "new.mp4", "films/X/new.mp4", 20); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := s.Files(StatePending)
-	if len(got) != 1 || got[0].Input != "http://new" || got[0].Attempts != 0 || got[0].Error != "" || got[0].FinishedAt != nil {
+	if len(got) != 1 || got[0].Input != "http://new" || got[0].Attempts != 0 || got[0].Error != "" || got[0].FinishedAt != nil ||
+		got[0].OriginalName != "new.mp4" || got[0].Dest != "films/X/new.mp4" || got[0].Size != 20 {
 		t.Fatalf("replace: %+v", got)
 	}
 }

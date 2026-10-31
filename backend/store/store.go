@@ -185,8 +185,10 @@ func (s *Store) IncAttempts(id int64) error {
 	return s.exec(`UPDATE files SET attempts=attempts+1 WHERE id=?`, id)
 }
 
-func (s *Store) Replace(id int64, input string) error {
-	return s.exec(`UPDATE files SET input=?, state=?, error='', attempts=0, started_at=NULL, finished_at=NULL WHERE id=?`, input, StatePending, id)
+// Replace remet le fichier en attente avec un nouveau lien, son nom, sa destination et sa taille.
+func (s *Store) Replace(id int64, input, name, dest string, size int64) error {
+	return s.exec(`UPDATE files SET input=?, original_name=?, dest=?, size=?, state=?, error='', attempts=0, started_at=NULL, finished_at=NULL WHERE id=?`,
+		input, name, dest, size, StatePending, id)
 }
 
 // Delete supprime le fichier, puis son job s'il n'en a plus.

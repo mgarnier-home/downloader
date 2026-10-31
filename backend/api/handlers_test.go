@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -35,7 +36,11 @@ func (fakeSource) Resolve(_ context.Context, in string) ([]source.Item, error) {
 	if strings.Contains(in, "offline") {
 		return []source.Item{{Name: path.Base(in), Error: "hôte : fichier supprimé"}}, nil
 	}
-	return []source.Item{{Name: path.Base(in), Size: 10, Online: true}}, nil
+	size := int64(10)
+	if strings.Contains(in, "big") {
+		size = 20
+	}
+	return []source.Item{{Name: path.Base(in), Size: size, Online: true}}, nil
 }
 
 type env struct {
@@ -319,6 +324,34 @@ func TestFileActionsNeedError(t *testing.T) {
 	}
 	if n := len(e.files()); n != 2 {
 		t.Errorf("%d fichiers en base", n)
+	}
+}
+
+func TestReplaceRereadsLink(t *testing.T) {
+	e := newEnv(t)
+	files := e.job(naming.Movie, store.StateError, store.StateError)
+	replace := func(id int64, input string) *httptest.ResponseRecorder {
+		return e.do(http.MethodPost, "/api/files/"+itoa(id)+"/replace", `{"input":"`+input+`"}`)
+	}
+	if rec := replace(files[0].ID, "https://h/big.mp4"); rec.Code != http.StatusNoContent {
+		t.Fatalf("remplacer : %d %s", rec.Code, rec.Body)
+	}
+	got := e.files()
+	if f := got[0]; f.Size != 20 || f.OriginalName != "big.mp4" || f.Dest != "films/X/moviea.mp4" || f.State != store.StatePending {
+		t.Errorf("fichier remplacé : %+v", f)
+	}
+	rec := replace(files[1].ID, "https://h/offline.mkv")
+	if rec.Code != http.StatusBadRequest || decode[ErrorBody](t, rec).Error != "hôte : fichier supprimé" {
+		t.Errorf("lien hors ligne : %d %s", rec.Code, rec.Body)
+	}
+	if f := e.files()[1]; !reflect.DeepEqual(f, got[1]) {
+		t.Errorf("fichier modifié malgré le refus : %+v", f)
+	}
+	// Même destination de départ que le 1er fichier : la nouvelle extension la fait viser moviea.mp4, en file.
+	other := e.job(naming.Movie, store.StateError)[0]
+	rec = replace(other.ID, "https://h/big2.mp4")
+	if rec.Code != http.StatusConflict || decode[ErrorBody](t, rec).Error != "Déjà dans la file : films/X/moviea.mp4" {
+		t.Errorf("destination prise : %d %s", rec.Code, rec.Body)
 	}
 }
 

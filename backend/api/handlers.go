@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -357,28 +358,51 @@ func (h *Handlers) replace(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	input := strings.TrimSpace(req.Input)
-	// Le fichier garde sa source : le nouveau lien doit être reconnu par la même.
-	if s, found := source.Pick(h.Sources, input); !found || s.Name() != f.Source {
-		writeError(w, http.StatusBadRequest, "Lien non reconnu par la source "+f.Source)
+	nf, err := h.replacement(r.Context(), f, strings.TrimSpace(req.Input))
+	if err != nil {
+		h.fail(w, err)
 		return
 	}
 	h.enqueue.Lock()
 	defer h.enqueue.Unlock()
-	if taken, err := h.Store.InputTaken(input); err != nil {
-		internal(w, "vérification des doublons", err)
-		return
-	} else if taken {
-		writeError(w, http.StatusConflict, "Déjà dans la file : "+f.Dest)
+	if err := h.checkQueued([]store.File{nf}); err != nil {
+		h.fail(w, err)
 		return
 	}
 	h.Queue.Cancel(f.ID)
-	if err := h.Store.Replace(f.ID, input); err != nil {
+	if err := h.Store.Replace(f.ID, nf.Input, nf.OriginalName, nf.Dest, nf.Size); err != nil {
 		internal(w, "remplacement du lien", err)
 		return
 	}
 	h.Queue.Wake()
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// replacement relit le nouveau lien de f, qui garde sa source : taille et nom sont repris (ceux du
+// lien mort fausseraient la reprise et le contrôle de longueur), l'extension de la destination suit.
+func (h *Handlers) replacement(ctx context.Context, f store.File, input string) (store.File, error) {
+	s, found := source.Pick(h.Sources, input)
+	if !found || s.Name() != f.Source {
+		return f, &httpError{http.StatusBadRequest, "Lien non reconnu par la source " + f.Source}
+	}
+	items, err := s.Resolve(ctx, input)
+	if err != nil {
+		return f, &httpError{http.StatusBadGateway, err.Error()}
+	}
+	if len(items) != 1 {
+		return f, &httpError{http.StatusBadRequest, "Le lien doit désigner un seul fichier"}
+	}
+	if !items[0].Online {
+		return f, &httpError{http.StatusBadRequest, cmp.Or(items[0].Error, "Lien hors ligne")}
+	}
+	f.Input, f.OriginalName, f.Size = input, cmp.Or(items[0].Name, f.OriginalName), items[0].Size
+	if ext := path.Ext(f.OriginalName); ext != "" && ext != path.Ext(f.Dest) {
+		f.Dest = strings.TrimSuffix(f.Dest, path.Ext(f.Dest)) + ext
+		if _, err := naming.Within(h.MediaDir, f.Dest); err != nil {
+			return f, &httpError{http.StatusBadRequest, "Destination invalide : " + f.Dest}
+		}
+	}
+	return f, nil
 }
 
 func (h *Handlers) remove(w http.ResponseWriter, r *http.Request) {
