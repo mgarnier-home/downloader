@@ -209,9 +209,16 @@ func (s *Store) Delete(id int64) error {
 	return tx.Commit()
 }
 
-func (s *Store) DestTaken(dest string) (bool, error) {
+// DestTaken dit si un fichier encore dans la file (ni rangé ni en erreur) vise dest.
+func (s *Store) DestTaken(dest string) (bool, error) { return s.inQueue("dest", dest) }
+
+// InputTaken dit si un fichier encore dans la file (ni rangé ni en erreur) a cette entrée.
+func (s *Store) InputTaken(input string) (bool, error) { return s.inQueue("input", input) }
+
+// inQueue compte les fichiers non terminés dont la colonne col (constante) vaut v.
+func (s *Store) inQueue(col, v string) (bool, error) {
 	var n int
-	err := s.db.QueryRow(`SELECT COUNT(*) FROM files WHERE dest=? AND state<>?`, dest, StateError).Scan(&n)
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM files WHERE `+col+`=? AND state NOT IN (?,?)`, v, StateDone, StateError).Scan(&n)
 	return n > 0, err
 }
 

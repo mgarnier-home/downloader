@@ -134,3 +134,23 @@ func TestDeleteLastFileDeletesJob(t *testing.T) {
 		t.Fatal("le job doit disparaître")
 	}
 }
+
+func TestInputTaken(t *testing.T) {
+	s := openTemp(t)
+	id := newJob(t, s, "a")[0].ID
+	if ok, err := s.InputTaken("http://x/a"); err != nil || !ok {
+		t.Fatalf("attendu pris : %v %v", ok, err)
+	}
+	if ok, _ := s.InputTaken("http://x/b"); ok {
+		t.Fatal("lien inconnu attendu libre")
+	}
+	for _, st := range []State{StateDone, StateError} {
+		_ = s.SetState(id, st, "")
+		if ok, _ := s.InputTaken("http://x/a"); ok {
+			t.Fatalf("attendu libre en %s", st)
+		}
+		if ok, _ := s.DestTaken("a"); ok {
+			t.Fatalf("destination attendue libre en %s", st)
+		}
+	}
+}
