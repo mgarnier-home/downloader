@@ -78,7 +78,8 @@ backend/
   deezer/                  client de l'API Deezer, déchiffrement, tags ID3v2
   tmdb/                    client TMDB
   naming/                  lecture des noms de fichier, PascalCase, calcul des chemins
-  queue/                   file d'attente, téléchargements, état persistant
+  queue/                   file d'attente, téléchargements
+  store/                   base SQLite (jobs, files)
 frontend/                  Angular, composants standalone, signals, httpResource
 ```
 
@@ -139,11 +140,30 @@ une source de plus, sans toucher à la file d'attente.
   déplacement est un `rename` instantané : Jellyfin et Navidrome ne voient jamais de fichier
   partiel.
 - Les dossiers de destination sont créés au besoin.
-- Une vidéo interrompue reprend avec un en-tête HTTP `Range`. Au démarrage, les fichiers `en cours`
-  repartent d'où ils en étaient (ou du début si le serveur ne gère pas `Range`).
-- L'état (file et historique) est enregistré dans `/data/state.json`, réécrit à chaque changement
-  (écriture dans un fichier temporaire puis `rename`, pour ne jamais le corrompre).
+- Une vidéo interrompue reprend avec un en-tête HTTP `Range`, à partir de la taille du fichier
+  partiel déjà présent dans `download/`. Au démarrage, les fichiers `en cours` repartent d'où ils en
+  étaient (ou du début si le serveur ne gère pas `Range`).
 - `GET /api/queue` renvoie l'état complet ; le front le relit toutes les 2 secondes.
+
+### Persistance
+
+La file et l'historique sont enregistrés dans une base SQLite, `<DOWNLOADER_DATA_DIR>/downloader.db`,
+avec le pilote `modernc.org/sqlite` (Go pur, le binaire reste construit sans CGO). La base est
+ouverte en mode WAL, avec une seule connexion d'écriture.
+
+- Table `jobs` : un ajout de l'utilisateur (une œuvre, un album ou un titre). Colonnes : identifiant,
+  type (série, film, animé, musique), titre affiché, fiche TMDB ou Deezer, date de création.
+- Table `files` : un fichier à télécharger, rattaché à un job. Colonnes : identifiant, job, source,
+  entrée d'origine (lien ou identifiant Deezer), nom d'origine, taille, destination, état, message
+  d'erreur, nombre de tentatives, dates de début et de fin.
+- Le schéma est créé au démarrage s'il n'existe pas (`CREATE TABLE IF NOT EXISTS`). Une version de
+  schéma (`PRAGMA user_version`) permettra les migrations des versions suivantes.
+- Chaque changement d'état est écrit dans une transaction. La progression en octets et le débit ne
+  sont gardés qu'en mémoire : à la reprise, la taille du fichier partiel suffit.
+- L'historique est la liste des fichiers `rangé` ou `erreur`, sans purge dans la v0.1.0.
+
+La base doit être sur un disque local de l'hôte, pas sur un partage NFS, où le verrouillage de
+SQLite n'est pas fiable.
 
 ## Règles de rangement
 
@@ -241,7 +261,7 @@ remplace le fichier existant au moment du déplacement.
 | ------------------------------ | ------------------------------------- | ---------- |
 | `DOWNLOADER_SERVER_PORT`       | port d'écoute                         | `8080`     |
 | `DOWNLOADER_MEDIA_DIR`         | racine de la médiathèque              | `/media`   |
-| `DOWNLOADER_DATA_DIR`          | dossier de `state.json`               | `/data`    |
+| `DOWNLOADER_DATA_DIR`          | dossier de `downloader.db` (local)    | `/data`    |
 | `DOWNLOADER_ALLDEBRID_API_KEY` | clé API AllDebrid                     | (requise)  |
 | `DOWNLOADER_DEEZER_ARL`        | cookie `arl` du compte Deezer         | (requise)  |
 | `DOWNLOADER_TMDB_API_KEY`      | clé API TMDB (lecture)                | (requise)  |
@@ -260,6 +280,7 @@ Tests unitaires Go sur la logique non triviale :
 - déchiffrement Deezer, sur un petit échantillon chiffré de référence ;
 - file d'attente : limites de parallélisme, reprise après redémarrage, nouvelles tentatives,
   déplacement final ;
+- `store` : création du schéma et transitions d'état, sur une base SQLite temporaire ;
 - clients AllDebrid, TMDB et Deezer contre des serveurs `httptest`.
 
 Front : `ng test` sur les composants qui portent de la logique (tableau de vérification, regroupement
