@@ -6,7 +6,6 @@
 
   <div class="toolbar">
     @if (summary(); as s) {
-      <span class="chip num"><span class="dot acc"></span>{{ speedText() }}</span>
       <span class="chip num">{{ s.active }} actifs · {{ s.pending }} en attente</span>
       <span class="chip num">reste {{ formatBytes(s.bytesLeft) }}@if (eta()) { · ~{{ eta() }} }</span>
       <span class="chip num" [class.bad]="s.errors > 0"><span class="dot" [class.bad]="s.errors > 0"></span>{{ s.errors }} {{ s.errors > 1 ? 'erreurs' : 'erreur' }}</span>
@@ -53,6 +52,7 @@
       @for (j of running(); track j.id) {
         <div class="qrow" [class.idle]="idle(j)">
           <div class="t">{{ j.title }} <span [class]="'tag ' + kindClass[j.kind]">{{ kindLabel[j.kind] }}</span>
+            @if (hosts(j); as h) { <span class="muted light">{{ h }}</span> }
             @if (j.files.length > 1 && j.kind !== 'music') {
               <span class="muted num light">{{ count(j, 'done') }} / {{ j.files.length }} épisodes rangés</span>
             }
@@ -88,7 +88,8 @@
     @for (d of done(); track $index) {
       <div class="qrow">
         <div class="t"><span class="dot"></span>{{ d.title }} <span [class]="'tag ' + kindClass[d.kind]">{{ kindLabel[d.kind] }}</span>
-          @if (d.count > 1) { <span class="muted light">{{ d.count }} fichiers</span> }</div>
+          @if (d.count > 1) { <span class="muted light">{{ d.count }} fichiers</span> }
+          @if (d.seasons) { <span class="muted light">{{ d.seasons }}</span> }</div>
         <div class="m num">{{ d.at.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}</div>
         <div class="s"><span class="path">{{ d.dest }}</span></div>
       </div>

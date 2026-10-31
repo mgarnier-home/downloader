@@ -1,10 +1,10 @@
-import { JobView, QueueFile, QueueView } from '../api/models';
-import { episodeCells, fileMeta, summarize } from './group';
+import { HistoryEntry, JobView, QueueFile, QueueView } from '../api/models';
+import { doneToday, episodeCells, fileMeta, hosts, summarize } from './group';
 import { formatBytes } from '../format';
 
 const file = (over: Partial<QueueFile>): QueueFile => ({
   id: 1, name: 'x.mkv', dest: 'series/TheBoys/S02/TheBoys.S02.E01.mkv', state: 'pending', error: '',
-  bytes: 0, total: 0, speed: 0, attempts: 0, phase: '', ...over,
+  bytes: 0, total: 0, speed: 0, attempts: 0, phase: '', host: '1fichier.com', ...over,
 });
 
 describe('summarize', () => {
@@ -42,12 +42,39 @@ describe('fileMeta', () => {
       .toBe(`Extraction · 45 % · ${formatBytes(45)} / ${formatBytes(100)}`);
   });
 
-  it('affiche le téléchargement avec la durée restante', () => {
+  it('affiche le téléchargement avec sa vitesse et la durée restante', () => {
     expect(fileMeta(file({ state: 'running', bytes: 500, total: 1000, speed: 100 })))
-      .toBe(`50 % · ${formatBytes(500)} / ${formatBytes(1000)} · 5 s`);
+      .toBe(`50 % · ${formatBytes(500)} / ${formatBytes(1000)} · ${formatBytes(100)}/s · 5 s`);
   });
 
   it('affiche un fichier en attente', () => {
     expect(fileMeta(file({ state: 'pending', total: 1000 }))).toBe(`en attente · ${formatBytes(1000)}`);
+  });
+});
+
+describe('hosts', () => {
+  it('liste les origines distinctes du job', () => {
+    const job: JobView = { id: 1, kind: 'series', title: 'A', files: [
+      file({ id: 1 }), file({ id: 2, host: 'rapidgator.net' }), file({ id: 3 }), file({ id: 4, host: '' }),
+    ] };
+    expect(hosts(job)).toBe('1fichier.com, rapidgator.net');
+  });
+});
+
+describe('doneToday', () => {
+  const now = new Date('2026-11-01T12:00:00');
+  const pack = (dest: string, items: string[]): HistoryEntry => ({
+    finishedAt: '2026-11-01T10:00:00', title: 'Arcane', name: 'p.rar', dest, kind: 'series', size: 1, state: 'done',
+    error: '', host: '1fichier.com', pack: { placed: items.length, present: 0, bonus: 0, items: items.map((d) => ({ dest: d, result: 'placed' })) },
+  });
+
+  it('garde le dossier des packs et donne leurs saisons', () => {
+    const [g] = doneToday([
+      pack('series/Arcane', ['series/Arcane/S01/Arcane.S01.E01.mkv']),
+      pack('series/Arcane', ['series/Arcane/S02/Arcane.S02.E01.mkv']),
+    ], now);
+    expect(g.dest).toBe('series/Arcane/');
+    expect(g.seasons).toBe('Saisons 1, 2');
+    expect(g.count).toBe(2);
   });
 });

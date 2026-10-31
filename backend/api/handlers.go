@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"slices"
@@ -254,13 +255,22 @@ func (h *Handlers) getQueue(w http.ResponseWriter, _ *http.Request) {
 }
 
 func fileView(f store.File, progress map[int64]queue.Progress) FileView {
-	v := FileView{ID: f.ID, Name: f.OriginalName, Dest: f.Dest, State: f.State, Error: f.Error, Total: f.Size, Attempts: f.Attempts}
+	v := FileView{ID: f.ID, Name: f.OriginalName, Dest: f.Dest, State: f.State, Error: f.Error, Total: f.Size, Attempts: f.Attempts, Host: host(f)}
 	if p, ok := progress[f.ID]; ok {
 		v.Bytes, v.Total, v.Speed, v.Phase = p.Bytes, p.Total, p.Speed, p.Phase
 	} else if f.State == store.StateDone {
 		v.Bytes = f.Size
 	}
 	return v
+}
+
+// host est l'origine affichée d'un fichier : le nom d'hôte de son lien, jamais le lien entier (jetons),
+// sinon le nom de la source (« deezer:track:… »).
+func host(f store.File) string {
+	if u, err := url.Parse(f.Input); err == nil && u.Hostname() != "" {
+		return strings.TrimPrefix(u.Hostname(), "www.")
+	}
+	return f.Source
 }
 
 func (h *Handlers) jobsOf(files []store.File) (map[int64]store.Job, error) {
@@ -298,7 +308,7 @@ func (h *Handlers) history(w http.ResponseWriter, r *http.Request) {
 	rows := []HistoryRow{}
 	for _, f := range files {
 		if j := jobs[f.JobID]; keep(j, f) {
-			row := HistoryRow{Title: j.Title, Name: f.OriginalName, Dest: f.Dest, Kind: j.Kind, Size: f.Size, State: f.State, Error: f.Error}
+			row := HistoryRow{Title: j.Title, Name: f.OriginalName, Dest: f.Dest, Kind: j.Kind, Size: f.Size, State: f.State, Error: f.Error, Host: host(f)}
 			if f.FinishedAt != nil {
 				row.FinishedAt = *f.FinishedAt
 			}

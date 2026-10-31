@@ -18,8 +18,21 @@
               @for (r of rows; track $index) {
                 <tr>
                   <td class="num muted" data-l="Terminé">{{ when(r.finishedAt) }}</td>
-                  <td data-l="Élément">{{ r.title || r.name }}@if (r.title && r.name && r.title !== r.name) { <div class="mono muted">{{ r.name }}</div> }
-                    @if (r.pack && r.state !== 'error') { <div class="muted">{{ packSummary(r.pack) }}</div> }</td>
+                  <td data-l="Élément">{{ r.title || r.name }}@if (r.host) { <span class="muted"> · {{ r.host }}</span> }
+                    @if (r.title && r.name && r.title !== r.name) { <div class="mono muted">{{ r.name }}</div> }
+                    @if (r.pack && r.state !== 'error') {
+                      <div class="muted">{{ packSummary(r.pack) }}</div>
+                      @if (r.pack.items?.length) {
+                        <details>
+                          <summary class="muted">Voir les {{ r.pack.items!.length }} vidéos</summary>
+                          <ul class="items">
+                            @for (i of r.pack.items; track $index) {
+                              <li><span class="mono">{{ i.dest.slice(r.dest.length + 1) }}</span> <span class="muted">{{ result[i.result] }}</span></li>
+                            }
+                          </ul>
+                        </details>
+                      }
+                    }</td>
                   <td data-l="Type">
                     <span [class]="'tag ' + kindClass[r.kind]">{{ kindName[r.kind] }}</span>
                     @if (r.state === 'error') { <span class="tag bad">Erreur</span> }

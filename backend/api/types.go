@@ -89,6 +89,7 @@ type FileView struct {
 	Speed    float64     `json:"speed"`
 	Attempts int         `json:"attempts"`
 	Phase    string      `json:"phase"` // "extraction" pendant celle d'un pack
+	Host     string      `json:"host"`  // origine : nom d'hôte du lien
 }
 
 type JobView struct {
@@ -115,6 +116,7 @@ type HistoryRow struct {
 	State      store.State       `json:"state"`
 	Error      string            `json:"error"`
 	Pack       *store.PackReport `json:"pack"` // bilan d'un pack, null sinon
+	Host       string            `json:"host"` // origine : nom d'hôte du lien
 }
 
 type DeezerArtist struct {
