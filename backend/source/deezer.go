@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/mgarnier-home/downloader/backend/deezer"
 )
@@ -27,11 +29,27 @@ func (d *Deezer) Name() string { return "deezer" }
 
 func (d *Deezer) Match(input string) bool { return deezerInput.MatchString(input) }
 
+// streamHTTP borne l'attente des en-têtes sans couper un téléchargement lent (pas de Timeout global).
+var streamHTTP = func() *http.Client {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.ResponseHeaderTimeout = 30 * time.Second
+	return &http.Client{Transport: t}
+}()
+
 func (d *Deezer) client() *http.Client {
 	if d.HTTP != nil {
 		return d.HTTP
 	}
-	return http.DefaultClient
+	return streamHTTP
+}
+
+// transient convertit une erreur passagère de Deezer en *StatusError, retentée par la file.
+func transient(err error) error {
+	var se *deezer.StatusError
+	if errors.As(err, &se) {
+		return fmt.Errorf("Deezer : %w", &StatusError{Code: se.Code})
+	}
+	return err
 }
 
 func (d *Deezer) Resolve(ctx context.Context, input string) ([]Item, error) {
@@ -53,7 +71,7 @@ func (d *Deezer) Resolve(ctx context.Context, input string) ([]Item, error) {
 		metas = []deezer.TrackMeta{t}
 	}
 	if err != nil {
-		return nil, err
+		return nil, transient(err)
 	}
 	items := make([]Item, 0, len(metas))
 	for _, t := range metas {
@@ -79,7 +97,7 @@ func (d *Deezer) item(t deezer.TrackMeta) Item {
 		Open: func(ctx context.Context, offset int64) (io.ReadCloser, bool, error) {
 			u, err := d.Client.StreamURL(ctx, t.SongID) // les URL expirent : relue à chaque ouverture
 			if err != nil {
-				return nil, false, err
+				return nil, false, transient(err)
 			}
 			body, _, err := openURL(ctx, d.client(), u, 0)
 			if err != nil {

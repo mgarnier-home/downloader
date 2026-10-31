@@ -23,7 +23,15 @@ func deezerServer(t *testing.T) *Deezer {
 		var id string
 		switch {
 		case r.URL.Path == "/album/302127":
-			_, _ = io.WriteString(w, `{"id":302127,"title":"Discovery","nb_disk":1,"artist":{"name":"Daft Punk"},"tracks":{"data":[{"id":1},{"id":2},{"id":3}]}}`)
+			_, _ = io.WriteString(w, `{"id":302127,"title":"Discovery","nb_disk":1,"nb_tracks":3,"artist":{"name":"Daft Punk"}}`)
+		case r.URL.Path == "/album/302127/tracks":
+			_, _ = io.WriteString(w, `{"data":[{"id":1,"title":"T1","track_position":1,"disk_number":1,"artist":{"name":"Daft Punk"}},
+				{"id":2,"title":"T2","track_position":2,"disk_number":1,"artist":{"name":"Daft Punk"}},
+				{"id":3,"title":"T3","track_position":3,"disk_number":1,"artist":{"name":"Daft Punk"}}]}`)
+		case r.URL.Path == "/album/503":
+			w.WriteHeader(http.StatusServiceUnavailable)
+		case r.URL.Path == "/album/429":
+			_, _ = io.WriteString(w, `{"error":{"type":"Exception","message":"Quota limit exceeded","code":4}}`)
 		case strings.HasPrefix(r.URL.Path, "/track/"):
 			id = strings.TrimPrefix(r.URL.Path, "/track/")
 			_, _ = fmt.Fprintf(w, `{"id":%s,"title":"T%s","track_position":%s,"disk_number":1,"artist":{"name":"Daft Punk"},"album":{"id":302127}}`, id, id, id)
@@ -40,6 +48,10 @@ func deezerServer(t *testing.T) *Deezer {
 				Tokens []string `json:"track_tokens"`
 			}
 			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body.Tokens[0] == "tt500" {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 			if body.Tokens[0] == "tt2" {
 				_, _ = io.WriteString(w, `{"data":[{"media":[]}]}`)
 				return
@@ -142,5 +154,25 @@ func TestDeezerMatch(t *testing.T) {
 		if got := d.Match(in); got != want {
 			t.Errorf("Match(%q) = %v", in, got)
 		}
+	}
+}
+
+func TestDeezerSourceTransientErrors(t *testing.T) {
+	d := deezerServer(t)
+	for in, code := range map[string]int{"deezer:album:503": 503, "deezer:album:429": 429} {
+		_, err := d.Resolve(context.Background(), in)
+		var se *StatusError
+		if !errors.As(err, &se) || se.Code != code {
+			t.Errorf("%s : err = %v", in, err)
+		}
+	}
+	items, err := d.Resolve(context.Background(), "deezer:track:3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	it, _ := d.Reopen(context.Background(), "", strings.Replace(items[0].Meta, `"SongID":"3"`, `"SongID":"500"`, 1))
+	var se *StatusError
+	if _, _, err := it.Open(context.Background(), 0); !errors.As(err, &se) || se.Code != 500 {
+		t.Errorf("get_url 500 : err = %v", err)
 	}
 }

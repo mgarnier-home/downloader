@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,8 +18,17 @@ const testARL = "arl-secret-123"
 func fakeDeezer(t *testing.T, over map[string]http.HandlerFunc) *Client {
 	t.Helper()
 	routes := map[string]http.HandlerFunc{
-		"/album/302127": text(`{"id":302127,"title":"Discovery","md5_image":"abc","release_date":"2001-03-07","nb_disk":2,
-			"artist":{"name":"Daft Punk"},"genres":{"data":[{"name":"Électro"}]},"tracks":{"data":[{"id":1},{"id":2}]}}`),
+		"/album/302127": text(`{"id":302127,"title":"Discovery","md5_image":"abc","release_date":"2001-03-07","nb_disk":2,"nb_tracks":3,
+			"artist":{"name":"Daft Punk"},"genres":{"data":[{"name":"Électro"}]}}`),
+		// Liste paginée : 2 pistes puis 1, next en URL absolue comme l'API réelle.
+		"/album/302127/tracks": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("index") == "2" {
+				_, _ = io.WriteString(w, `{"data":[{"id":3,"title":"Digital Love","track_position":2,"disk_number":2,"artist":{"name":"Daft Punk"}}]}`)
+				return
+			}
+			_, _ = fmt.Fprintf(w, `{"data":[{"id":1,"title":"One More Time","track_position":1,"disk_number":1,"artist":{"name":"Daft Punk"}},
+				{"id":2,"title":"Aerodynamic","track_position":1,"disk_number":2,"artist":{"name":"Daft Punk"}}],"next":"http://%s/album/302127/tracks?index=2"}`, r.Host)
+		},
 		"/track/1": text(`{"id":1,"title":"One More Time","track_position":1,"disk_number":1,"artist":{"name":"Daft Punk"},
 			"contributors":[{"name":"Daft Punk"},{"name":"Romanthony"}],"album":{"id":302127}}`),
 		"/track/2": text(`{"id":2,"title":"Aerodynamic","track_position":1,"disk_number":2,"artist":{"name":"Daft Punk"},"album":{"id":302127}}`),
@@ -133,26 +143,43 @@ func TestTokenRenewedOnce(t *testing.T) {
 	}
 }
 
-func TestAlbumTracksMultiDisc(t *testing.T) {
-	c := fakeDeezer(t, nil)
+func TestAlbumTracksPaginatedMultiDisc(t *testing.T) {
+	c := fakeDeezer(t, map[string]http.HandlerFunc{
+		"/track/1": func(http.ResponseWriter, *http.Request) { t.Error("un appel /track/<id> par piste") },
+	})
 	tracks, err := c.AlbumTracks(context.Background(), 302127)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tracks) != 2 {
+	if len(tracks) != 3 {
 		t.Fatalf("%d pistes", len(tracks))
 	}
-	a, b := tracks[0], tracks[1]
-	if a.Info.DiskCount != 2 || a.Info.Disc != 1 || a.Info.Track != 1 || b.Info.Disc != 2 || b.Info.Track != 1 {
-		t.Errorf("disques/pistes : %+v / %+v", a.Info, b.Info)
+	a, b, d := tracks[0], tracks[1], tracks[2]
+	if a.Info.DiskCount != 2 || a.Info.Disc != 1 || a.Info.Track != 1 || b.Info.Disc != 2 || b.Info.Track != 1 ||
+		d.SongID != "3" || d.Info.Disc != 2 || d.Info.Track != 2 || d.Info.DiskCount != 2 {
+		t.Errorf("disques/pistes : %+v / %+v / %+v", a.Info, b.Info, d.Info)
 	}
 	if a.SongID != "1" || a.Info.Title != "One More Time" || a.Info.Album != "Discovery" || a.Info.AlbumArtist != "Daft Punk" ||
-		a.Year != 2001 || a.Genre != "Électro" || strings.Join(a.Artists, ",") != "Daft Punk,Romanthony" ||
+		a.Year != 2001 || a.Genre != "Électro" || strings.Join(a.Artists, ",") != "Daft Punk" ||
 		a.CoverURL != "https://e-cdns-images.dzcdn.net/images/cover/abc/{size}x{size}-000000-80-0-0.jpg" {
 		t.Errorf("méta = %+v", a)
 	}
-	if strings.Join(b.Artists, ",") != "Daft Punk" {
-		t.Errorf("artistes sans contributeurs = %v", b.Artists)
+}
+
+func TestAlbumTracksIncomplete(t *testing.T) {
+	c := fakeDeezer(t, map[string]http.HandlerFunc{
+		"/album/302127/tracks": text(`{"data":[{"id":1,"title":"One More Time","track_position":1,"disk_number":1,"artist":{"name":"Daft Punk"}}]}`),
+	})
+	if _, err := c.AlbumTracks(context.Background(), 302127); err == nil || err.Error() != "Deezer : liste des pistes incomplète" {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestTrackMetaContributors(t *testing.T) {
+	c := fakeDeezer(t, nil)
+	m, err := c.TrackMeta(context.Background(), 1)
+	if err != nil || strings.Join(m.Artists, ",") != "Daft Punk,Romanthony" {
+		t.Fatalf("m = %+v, err = %v", m, err)
 	}
 }
 

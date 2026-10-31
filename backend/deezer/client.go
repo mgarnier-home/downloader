@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/mgarnier-home/downloader/backend/naming"
 )
@@ -79,11 +80,18 @@ type TrackMeta struct {
 	CoverURL string // modèle avec {size}, remplacé par 800 ou 1200
 }
 
+// StatusError signale une erreur passagère : HTTP 429 ou 5xx, ou quota de l'API dépassé (Code 429).
+type StatusError struct{ Code int }
+
+func (e *StatusError) Error() string { return fmt.Sprintf("Deezer : réponse HTTP %d", e.Code) }
+
+var defaultHTTP = &http.Client{Timeout: 30 * time.Second}
+
 func (c *Client) client() *http.Client {
 	if c.HTTP != nil {
 		return c.HTTP
 	}
-	return http.DefaultClient
+	return defaultHTTP
 }
 
 // stripURL retire l'URL (qui porte le jeton de session) d'une erreur réseau.
@@ -103,6 +111,9 @@ func (c *Client) do(req *http.Request, out any) (*http.Response, error) {
 		return nil, fmt.Errorf("Deezer : %w", stripURL(err))
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+		return nil, &StatusError{Code: resp.StatusCode}
+	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return nil, fmt.Errorf("Deezer : erreur HTTP %d", resp.StatusCode)
 	}
@@ -129,9 +140,13 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) er
 	var e struct {
 		Error *struct {
 			Message string `json:"message"`
+			Code    int    `json:"code"`
 		} `json:"error"`
 	}
 	if json.Unmarshal(raw, &e) == nil && e.Error != nil {
+		if e.Error.Code == 4 { // Quota limit exceeded
+			return &StatusError{Code: http.StatusTooManyRequests}
+		}
 		return fmt.Errorf("Deezer : %s", e.Error.Message)
 	}
 	if err := json.Unmarshal(raw, out); err != nil {
@@ -372,15 +387,11 @@ type apiAlbum struct {
 	MD5Image    string `json:"md5_image"`
 	ReleaseDate string `json:"release_date"`
 	NbDisk      int    `json:"nb_disk"`
+	NbTracks    int    `json:"nb_tracks"`
 	Artist      name   `json:"artist"`
 	Genres      struct {
 		Data []name `json:"data"`
 	} `json:"genres"`
-	Tracks struct {
-		Data []struct {
-			ID int `json:"id"`
-		} `json:"data"`
-	} `json:"tracks"`
 }
 
 type apiTrack struct {
@@ -406,22 +417,44 @@ func (c *Client) track(ctx context.Context, id int) (apiTrack, error) {
 	return t, c.get(ctx, "/track/"+strconv.Itoa(id), nil, &t)
 }
 
-// AlbumTracks renvoie les métadonnées de chaque titre de l'album ; la position et le disque
-// ne sont donnés que par /track/<id>.
+// AlbumTracks renvoie les métadonnées de chaque titre de l'album, lus dans la liste paginée
+// /album/<id>/tracks (position et disque compris).
 func (c *Client) AlbumTracks(ctx context.Context, albumID int) ([]TrackMeta, error) {
 	a, err := c.album(ctx, albumID)
 	if err != nil {
 		return nil, err
 	}
-	metas := make([]TrackMeta, 0, len(a.Tracks.Data))
-	for _, ref := range a.Tracks.Data {
-		t, err := c.track(ctx, ref.ID)
-		if err != nil {
+	var metas []TrackMeta
+	for path := "/album/" + strconv.Itoa(albumID) + "/tracks"; path != ""; {
+		var page struct {
+			Data []apiTrack `json:"data"`
+			Next string     `json:"next"`
+		}
+		if err := c.get(ctx, path, nil, &page); err != nil {
 			return nil, err
 		}
-		metas = append(metas, buildMeta(a, t))
+		for _, t := range page.Data {
+			// shortcut: artistes secondaires absents de la liste paginée, appeler /track/<id> si on veut les featurings
+			metas = append(metas, buildMeta(a, t))
+		}
+		if len(page.Data) == 0 { // évite une boucle sur une page vide
+			break
+		}
+		path = nextPath(page.Next)
+	}
+	if len(metas) < a.NbTracks {
+		return nil, errors.New("Deezer : liste des pistes incomplète")
 	}
 	return metas, nil
+}
+
+// nextPath garde le chemin et la requête de l'URL suivante, pour rester sur c.APIURL.
+func nextPath(next string) string {
+	u, err := url.Parse(next)
+	if next == "" || err != nil {
+		return ""
+	}
+	return u.RequestURI()
 }
 
 // TrackMeta renvoie les métadonnées d'un titre ; l'album donne l'artiste de l'album, le genre et le nombre de disques.
