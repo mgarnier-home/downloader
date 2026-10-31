@@ -1,0 +1,73 @@
+<div class="pane">
+  <section class="card" aria-labelledby="h-music">
+    <div class="card-h">
+      <h2 id="h-music" class="sr-only">Recherche Deezer</h2>
+      <label class="sr-only" for="q">Rechercher sur Deezer ou coller un lien Deezer</label>
+      <input id="q" class="field grow" type="search" autocomplete="off" placeholder="Rechercher sur Deezer ou coller un lien"
+             [value]="query()" (input)="type($any($event.target).value)">
+      <span class="seg" role="group" aria-label="Filtrer les résultats">
+        @for (f of filters; track f.value) {
+          <button type="button" [attr.aria-pressed]="filter() === f.value" (click)="filter.set(f.value)">{{ f.label }}</button>
+        }
+      </span>
+    </div>
+    <div class="card-b" aria-live="polite">
+      @if (error()) { <p class="err-text" role="alert">{{ error() }}</p> }
+      @if (busy()) { <p class="muted">Recherche…</p> }
+
+      @if (link(); as l) {
+        <div class="artist">
+          <div><div class="strong">Lien Deezer reconnu</div><div class="muted small">{{ l.type === 'album' ? 'Album' : 'Titre' }} · {{ l.ref }}</div></div>
+          <button type="button" class="btn small primary end" [disabled]="!!added()[l.ref]" (click)="add(l.ref, query().trim())">{{ added()[l.ref] || 'Télécharger' }}</button>
+        </div>
+      }
+
+      @if (results(); as r) {
+        @if (empty()) { <p class="muted">Aucun résultat.</p> }
+        @if (show('artists') && r.artists.length) {
+          <h3 class="sub">Artistes</h3>
+          @for (a of r.artists; track a.id) {
+            <div class="artist">
+              <img class="avatar" [src]="a.picture" alt="" loading="lazy" width="56" height="56">
+              <div class="strong">{{ a.name }}</div>
+              <button type="button" class="btn small end" (click)="showArtist(a.name)">Voir ses albums</button>
+            </div>
+          }
+        }
+        @if (show('albums') && r.albums.length) {
+          <h3 class="sub">Albums</h3>
+          <div class="albums">
+            @for (a of r.albums; track a.id) {
+              @let ref = 'deezer:album:' + a.id;
+              <div class="album">
+                <img class="cover" [src]="a.cover" alt="" loading="lazy" width="200" height="200">
+                <div class="strong">{{ a.title }}</div>
+                <div class="muted small">{{ a.artist }} · {{ a.year || '' }} · {{ a.tracks }} titres</div>
+                @if (a.present) {
+                  <button type="button" class="btn small" disabled>Déjà présent</button>
+                } @else {
+                  <button type="button" class="btn small primary" [disabled]="added()[ref] === 'Ajouté'" (click)="add(ref)">{{ added()[ref] || 'Télécharger' }}</button>
+                }
+              </div>
+            }
+          </div>
+        }
+        @if (show('tracks') && r.tracks.length) {
+          <h3 class="sub">Titres</h3>
+          @for (t of r.tracks; track t.id) {
+            @let ref = 'deezer:track:' + t.id;
+            <div class="trk">
+              <span>{{ t.title }} <span class="muted">· {{ t.artist }} · {{ t.album }}</span></span>
+              <span class="muted num">{{ duration(t.duration) }}</span>
+              @if (added()[ref]; as state) {
+                <span class="small" [class.err-text]="state !== 'Ajouté'">{{ state }}</span>
+              } @else {
+                <button type="button" class="btn small" [attr.aria-label]="'Ajouter ' + t.title" (click)="add(ref)">+</button>
+              }
+            </div>
+          }
+        }
+      }
+    </div>
+  </section>
+</div>

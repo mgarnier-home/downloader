@@ -20,7 +20,7 @@ describe('toRequests', () => {
   it('regroupe par fiche : 8 épisodes + un film donnent 2 requêtes', () => {
     const reqs = toRequests([...episodes(), film()]);
     expect(reqs.length).toBe(2);
-    expect(reqs[0]).toMatchObject({ kind: 'series', title: 'The Boys', ref: 'tmdb:76479', deezer: false });
+    expect(reqs[0]).toMatchObject({ kind: 'series', title: 'The Boys', ref: 'tmdb:76479', deezer: '' });
     expect(reqs[0].files.length).toBe(8);
     expect(reqs[1]).toMatchObject({ kind: 'movie', title: 'Dunkerque', ref: 'tmdb:374720' });
     expect(reqs[1].files[0]).toEqual({

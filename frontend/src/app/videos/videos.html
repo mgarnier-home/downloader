@@ -32,11 +32,11 @@
                   <td class="chk"><input type="checkbox" [id]="'chk-' + i" [checked]="r.checked" [disabled]="!r.online || !r.dest"
                          (change)="patch(i, { checked: $any($event.target).checked })"
                          [attr.aria-label]="(r.exists ? 'Écraser le fichier existant : ' : 'Inclure ') + r.name"></td>
-                  <td class="mono name" data-l="Fichier">{{ r.name }}</td>
+                  <td class="mono name" data-l="Fichier">{{ r.name }}@if (r.online && r.error) { <div class="err-text">{{ r.error }}</div> }</td>
                   <td class="num" data-l="Taille">{{ r.online ? formatBytes(r.size) : '—' }}</td>
                   <td data-l="Lien"><span class="dot" [class.bad]="!r.online"></span> {{ r.online ? 'en ligne' : 'hors ligne' }}</td>
                   @if (!r.online) {
-                    <td colspan="3" class="err-text">Lien hors ligne{{ r.error ? ' : ' + r.error : '' }}, il ne sera pas ajouté</td>
+                    <td colspan="3" class="err-text">{{ r.error || 'Lien hors ligne' }}, il ne sera pas ajouté</td>
                   } @else {
                     <td data-l="Fiche">
                       {{ r.tmdb ? r.tmdb.title + ' (' + r.tmdb.year + ')' : 'aucune fiche' }}
@@ -58,10 +58,10 @@
                             <option value="bonus" [selected]="r.bonus">Bonus</option>
                           </select>
                           <label class="sr-only" [for]="'s-' + i">Saison</label>
-                          <input [id]="'s-' + i" class="field num-in" type="number" min="0" [value]="r.season" (change)="setNumber(i, 'season', $any($event.target).value)">
+                          <input [id]="'s-' + i" class="field num-in" type="number" min="0" placeholder="Saison" [value]="r.season" (change)="setNumber(i, 'season', $any($event.target).value)">
                           @if (!r.bonus) {
                             <label class="sr-only" [for]="'e-' + i">Épisode</label>
-                            <input [id]="'e-' + i" class="field num-in" type="number" min="0" [value]="r.episode" (change)="setNumber(i, 'episode', $any($event.target).value)">
+                            <input [id]="'e-' + i" class="field num-in" type="number" min="0" placeholder="Épisode" [value]="r.episode" (change)="setNumber(i, 'episode', $any($event.target).value)">
                           }
                         </div>
                       }
@@ -83,7 +83,7 @@
               }
               @if (g.hidden) {
                 <tr class="fold"><td></td><td colspan="6">
-                  <button type="button" class="btn small ghost" (click)="toggle(g.key)" [attr.aria-expanded]="false">Déplier {{ g.hidden }} lignes de plus</button>
+                  <button type="button" class="btn small ghost" (click)="toggle(g.key)" [attr.aria-expanded]="false">Déplier {{ g.hidden }} {{ g.hidden > 1 ? 'lignes' : 'ligne' }} de plus</button>
                 </td></tr>
               } @else if (g.idx.length > 2 && rows()[g.idx[0]].kind === 'series') {
                 <tr class="fold"><td></td><td colspan="6">

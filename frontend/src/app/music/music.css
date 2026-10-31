@@ -1,0 +1,13 @@
+.grow{flex:1;min-width:200px;width:auto}
+.sub{font-size:12px;font-weight:500;color:var(--muted)}
+.strong{font-weight:600}
+.small{font-size:12.5px}
+.artist{display:flex;gap:12px;align-items:center}
+.avatar{border-radius:50%;object-fit:cover;background:var(--raised)}
+.albums{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.album{display:grid;gap:6px;align-content:start;font-size:13px}
+.album .btn{justify-self:start}
+.cover{width:100%;height:auto;aspect-ratio:1;border-radius:8px;object-fit:cover;background:linear-gradient(135deg,#44475a,#6272a4)}
+.trk{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+.trk:last-child{border-bottom:0}
+@media (max-width:700px){.albums{grid-template-columns:repeat(2,minmax(0,1fr))}}

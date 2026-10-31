@@ -39,7 +39,7 @@ export function toRequests(rows: EditableRow[]): EnqueueRequest[] {
     const key = `${r.kind}|${r.tmdb ? 'tmdb:' + r.tmdb.id : 'nom:' + workName(r.dest)}`;
     let req = groups.get(key);
     if (!req) {
-      req = { kind: r.kind as Kind, title: r.tmdb?.title ?? workName(r.dest), ref: r.tmdb ? `tmdb:${r.tmdb.id}` : '', files: [], deezer: false };
+      req = { kind: r.kind as Kind, title: r.tmdb?.title ?? workName(r.dest), ref: r.tmdb ? `tmdb:${r.tmdb.id}` : '', files: [], deezer: '' };
       groups.set(key, req);
     }
     req.files.push({ input: r.input, name: r.name, size: r.size, dest: r.dest, overwrite: r.exists });

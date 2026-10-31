@@ -57,7 +57,7 @@ export interface EnqueueRequest {
   title: string;
   ref: string;
   files: EnqueueFile[];
-  deezer: boolean;
+  deezer: string; // lien ou « deezer:album:<id> » ; vide pour une vidéo
 }
 
 export interface QueueFile {
