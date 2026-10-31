@@ -1,0 +1,18 @@
+version: "2"
+linters:
+  enable:
+    - funlen
+    - gocognit
+    - nestif
+    - unparam
+  settings:
+    funlen:
+      lines: 60
+      statements: 40
+    gocognit:
+      min-complexity: 15
+    nestif:
+      min-complexity: 4
+formatters:
+  enable:
+    - gofmt

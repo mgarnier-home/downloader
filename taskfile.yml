@@ -1,0 +1,28 @@
+version: "3"
+
+tasks:
+  build:front:
+    dir: frontend
+    cmds:
+      - '[ -d node_modules ] || npm ci'
+      - npx ng build
+      - find ../backend/web/browser -mindepth 1 ! -name .gitkeep -delete
+      - cp -r dist/downloader/browser/. ../backend/web/browser/
+
+  build:back:
+    dir: backend
+    env:
+      CGO_ENABLED: "0"
+    cmds:
+      - go build -o ../bin/downloader .
+
+  build:
+    cmds:
+      - task: build:front
+      - task: build:back
+
+  test:
+    cmds:
+      - cd backend && go vet ./... && go test -race ./... && golangci-lint run
+      - cd frontend && npx ng lint && npx ng build && npx ng test --watch=false
+      - cd frontend && TZ=UTC npx ng test --watch=false
