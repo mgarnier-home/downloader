@@ -62,16 +62,21 @@ func (d *decrypter) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// fill lit et déchiffre le bloc suivant.
+// fill lit et déchiffre le bloc suivant. Seul un io.EOF de la source termine le flux : toute autre
+// erreur, dont io.ErrUnexpectedEOF d'une réponse coupée avant sa taille annoncée, remonte après les
+// octets déjà lus.
 func (d *decrypter) fill() {
-	n, err := io.ReadFull(d.r, d.block)
+	n := 0
+	var err error
+	for n < blockSize && err == nil {
+		var m int
+		m, err = d.r.Read(d.block[n:])
+		n += m
+	}
 	if n == blockSize && d.index%3 == 0 {
 		cipher.NewCBCDecrypter(d.c, iv).CryptBlocks(d.block, d.block)
 	}
 	d.index++
 	d.pending = d.block[:n]
-	if errors.Is(err, io.ErrUnexpectedEOF) {
-		err = io.EOF
-	}
 	d.err = err
 }

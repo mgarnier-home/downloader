@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"crypto/cipher"
 	"encoding/hex"
+	"errors"
 	"io"
 	"testing"
+	"testing/iotest"
 
 	"golang.org/x/crypto/blowfish" //nolint:staticcheck // chiffrement imposé par le format des flux Deezer
 )
@@ -46,6 +48,55 @@ func TestDecrypterStripes(t *testing.T) {
 		}
 		if !bytes.Equal(got, plain) {
 			t.Fatalf("morceaux de %d : flux déchiffré différent de l'original", chunk)
+		}
+	}
+}
+
+// encrypted renvoie un flux de n octets et sa version chiffrée comme Deezer (blocs pleins 0, 3, 6…).
+func encrypted(t *testing.T, n int, key []byte) (plain, enc []byte) {
+	t.Helper()
+	plain = make([]byte, n)
+	for i := range plain {
+		plain[i] = byte(i * 7)
+	}
+	c, err := blowfish.NewCipher(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enc = bytes.Clone(plain)
+	for b := 0; (b+1)*2048 <= n; b += 3 {
+		blk := enc[b*2048 : (b+1)*2048]
+		cipher.NewCBCEncrypter(c, []byte{0, 1, 2, 3, 4, 5, 6, 7}).CryptBlocks(blk, blk)
+	}
+	return plain, enc
+}
+
+func TestDecrypterEndsOnFullBlock(t *testing.T) {
+	key := TrackKey("3135556")
+	for _, n := range []int{2048, 4 * 2048} { // dernier bloc plein d'indice 0 puis 3 : chiffré
+		plain, enc := encrypted(t, n, key)
+		for _, chunk := range []int{1 << 20, 700} {
+			got, err := io.ReadAll(NewDecrypter(chunkReader{bytes.NewReader(enc), chunk}, key))
+			if err != nil || !bytes.Equal(got, plain) {
+				t.Fatalf("%d octets, morceaux de %d : err = %v, identique = %v", n, chunk, err, bytes.Equal(got, plain))
+			}
+		}
+	}
+}
+
+func TestDecrypterKeepsSourceError(t *testing.T) {
+	key := TrackKey("3135556")
+	plain, enc := encrypted(t, 3*2048, key)
+	for _, cut := range []int{2048 + 100, 2 * 2048} { // coupure en cours de bloc puis en fin de bloc
+		for _, srcErr := range []error{io.ErrUnexpectedEOF, errors.New("connexion coupée")} {
+			r := io.MultiReader(bytes.NewReader(enc[:cut]), iotest.ErrReader(srcErr))
+			got, err := io.ReadAll(NewDecrypter(r, key))
+			if !errors.Is(err, srcErr) {
+				t.Errorf("coupure à %d, %v : err = %v", cut, srcErr, err)
+			}
+			if !bytes.Equal(got, plain[:cut]) {
+				t.Errorf("coupure à %d, %v : %d octets lus, différents du début du flux", cut, srcErr, len(got))
+			}
 		}
 	}
 }

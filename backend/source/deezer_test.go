@@ -62,6 +62,11 @@ func deezerServer(t *testing.T) *Deezer {
 				w.WriteHeader(http.StatusNotFound)
 				return
 			}
+			if r.URL.Path == "/cdn/777" { // annonce 10000 octets et coupe après 5000
+				w.Header().Set("Content-Length", "10000")
+				_, _ = w.Write(make([]byte, 5000))
+				return
+			}
 			_, _ = io.WriteString(w, "audio-"+strings.TrimPrefix(r.URL.Path, "/cdn/")) // < 2048 octets : en clair
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -174,5 +179,22 @@ func TestDeezerSourceTransientErrors(t *testing.T) {
 	var se *StatusError
 	if _, _, err := it.Open(context.Background(), 0); !errors.As(err, &se) || se.Code != 500 {
 		t.Errorf("get_url 500 : err = %v", err)
+	}
+}
+
+func TestDeezerSourceTruncatedStream(t *testing.T) {
+	d := deezerServer(t)
+	items, err := d.Resolve(context.Background(), "deezer:track:3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	it, _ := d.Reopen(context.Background(), "", strings.Replace(items[0].Meta, `"SongID":"3"`, `"SongID":"777"`, 1))
+	rc, _, err := it.Open(context.Background(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = rc.Close() }()
+	if n, err := io.Copy(io.Discard, rc); err == nil {
+		t.Errorf("flux tronqué accepté : %d octets copiés sans erreur", n)
 	}
 }
