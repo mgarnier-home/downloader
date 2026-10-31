@@ -1,4 +1,5 @@
 import { HistoryEntry, JobView, QueueFile, QueueView } from '../api/models';
+import { formatBytes, formatEta } from '../format';
 
 export interface Summary { active: number; pending: number; errors: number; bytesLeft: number; speed: number }
 export interface Cell { label: string; state: 'done' | 'running' | 'pending' | 'error'; percent?: number }
@@ -15,6 +16,15 @@ export function summarize(view: QueueView): Summary {
     if (f.state === 'running' || f.state === 'pending') s.bytesLeft += Math.max(0, f.total - f.bytes);
   }
   return s;
+}
+
+/** Texte d'un fichier seul : en attente, extraction d'un pack ou téléchargement. */
+export function fileMeta(f: QueueFile): string {
+  if (f.state === 'pending') return `en attente · ${formatBytes(f.total)}`;
+  const done = `${filePercent(f)} % · ${formatBytes(f.bytes)} / ${formatBytes(f.total)}`;
+  if (f.phase === 'extraction') return `Extraction · ${done}`;
+  const eta = formatEta(f.total - f.bytes, f.speed);
+  return `${done}${eta ? ' · ' + eta : ''}`;
 }
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);

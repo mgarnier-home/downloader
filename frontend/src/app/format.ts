@@ -1,3 +1,5 @@
+import { PackReport } from './api/models';
+
 const dec = (n: number, digits: number) =>
   n.toLocaleString('fr-FR', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
@@ -29,3 +31,12 @@ export const KIND_CLASS: Record<string, string> = { series: 'serie', movie: 'fil
 /** Message `{"error": …}` renvoyé par le backend, ou le texte de secours. */
 export const apiError = (e: unknown, fallback: string): string =>
   (e as { error?: { error?: string } })?.error?.error ?? fallback;
+
+/** Bilan d'un pack : « 62 épisodes rangés · 2 déjà présents · 1 bonus » ; les zéros secondaires sont omis. */
+export function packSummary(p: PackReport): string {
+  const s = (n: number) => (n > 1 ? 's' : '');
+  const parts = [`${p.placed} épisode${s(p.placed)} rangé${s(p.placed)}`];
+  if (p.present) parts.push(`${p.present} déjà présent${s(p.present)}`);
+  if (p.bonus) parts.push(`${p.bonus} bonus`);
+  return parts.join(' · ');
+}

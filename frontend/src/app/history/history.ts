@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { ApiService } from '../api/api.service';
 import { HistoryFilter } from '../api/models';
-import { formatBytes, KIND_CLASS } from '../format';
+import { formatBytes, KIND_CLASS, packSummary } from '../format';
 
 const FILTERS: { value: HistoryFilter; label: string }[] = [
   { value: 'all', label: 'Tout' }, { value: 'video', label: 'Vidéos' },
@@ -19,6 +19,7 @@ export class HistoryPage {
   protected readonly kindName = KIND_NAME;
   protected readonly kindClass = KIND_CLASS;
   protected readonly formatBytes = formatBytes;
+  protected readonly packSummary = packSummary;
   protected readonly filter = signal<HistoryFilter>('all');
   protected readonly history = inject(ApiService).history(this.filter);
 

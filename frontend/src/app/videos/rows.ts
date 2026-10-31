@@ -32,6 +32,7 @@ export function recompose(r: EditableRow, work?: string): string {
   const name = work || workName(r.dest) || (r.tmdb?.title ?? r.name.replace(/\.[^.]+$/, '')).replace(/[^\p{L}\p{N}]/gu, '');
   const s = `S${pad(r.season)}`;
   const e = ext(r.name);
+  if (r.pack) return `series/${name}`;
   if (r.kind === 'series') {
     return r.bonus
       ? `series/${name}/${s}/Bonus/${r.name}`
@@ -65,7 +66,7 @@ export function withDest(r: EditableRow, dest: string): Pick<EditableRow, 'dest'
 export function applyCard(r: EditableRow, card: TMDBResult): EditableRow {
   const next: EditableRow = { ...r, tmdb: card, message: '' };
   if (r.destEdited) return next;
-  if (card.animation && !card.tv) next.kind = 'anime';
+  if (card.animation && !card.tv && !r.pack) next.kind = 'anime';
   if (r.kind !== '' || next.kind !== '') Object.assign(next, withDest(r, recompose(next, pascalCase(card.title))));
   return next;
 }

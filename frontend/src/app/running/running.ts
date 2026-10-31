@@ -3,7 +3,7 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../api/api.service';
 import { JobView, Kind, QueueFile } from '../api/models';
 import { apiError, formatBytes, formatEta, formatSpeed, KIND_CLASS, KIND_LABEL } from '../format';
-import { commonPath, doneToday, episodeCells, filePercent, jobPercent, summarize } from './group';
+import { commonPath, doneToday, episodeCells, fileMeta, filePercent, jobPercent, summarize } from './group';
 
 const FILTERS: { label: string; kind: Kind | '' }[] = [
   { label: 'Tout', kind: '' }, { label: 'Séries', kind: 'series' }, { label: 'Films', kind: 'movie' },
@@ -76,12 +76,7 @@ export class RunningPage {
     const running = job.files.filter((f) => f.state === 'running');
     const pending = this.count(job, 'pending');
     if (job.kind === 'music') return `${this.count(job, 'done')} / ${job.files.length} titres`;
-    if (job.files.length === 1) {
-      const f = job.files[0];
-      if (f.state === 'pending') return `en attente · ${formatBytes(f.total)}`;
-      const eta = formatEta(f.total - f.bytes, f.speed);
-      return `${filePercent(f)} % · ${formatBytes(f.bytes)} / ${formatBytes(f.total)}${eta ? ' · ' + eta : ''}`;
-    }
+    if (job.files.length === 1) return fileMeta(job.files[0]);
     const parts = running.map((f) => `${episodeCells({ ...job, files: [f] })[0].label} ${filePercent(f)} %`);
     if (pending) parts.push(`${pending} en attente`);
     return parts.join(' · ');

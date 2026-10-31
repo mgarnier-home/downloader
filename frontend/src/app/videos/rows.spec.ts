@@ -6,7 +6,7 @@ const dunkirk: TMDBResult = { id: 374720, title: 'Dunkerque', year: 2017, animat
 
 const base: AnalyzeRow = {
   input: 'https://h/x', name: 'x.mkv', size: 100, online: true, error: '', kind: 'movie', tmdb: null,
-  season: 0, episode: 0, needsReview: false, dest: 'films/X/X.mkv', exists: false,
+  season: 0, episode: 0, needsReview: false, dest: 'films/X/X.mkv', exists: false, pack: false,
 };
 const row = (over: Partial<AnalyzeRow>): EditableRow => toEditable({ ...base, ...over });
 const episodes = (): EditableRow[] =>
@@ -96,5 +96,25 @@ describe('withDest', () => {
   it('applyCard oublie « déjà présent » si la destination change, pas si elle est saisie à la main', () => {
     expect(applyCard(flagged(), dunkirk)).toMatchObject({ dest: 'films/Dunkerque/Dunkerque.mkv', exists: false });
     expect(applyCard({ ...flagged(), destEdited: true }, dunkirk).exists).toBe(true);
+  });
+});
+
+describe('pack', () => {
+  const bb: TMDBResult = { id: 1396, title: 'Breaking Bad', year: 2008, animation: false, poster: '', tv: true };
+  const pack = () => row({ name: 'Breaking.Bad.S03.rar', kind: 'series', tmdb: bb, season: 3, dest: 'series/BreakingBad', pack: true });
+
+  it('recompose garde le dossier de la série, quelle que soit la saison', () => {
+    expect(recompose({ ...pack(), season: 5 })).toBe('series/BreakingBad');
+  });
+
+  it('applyCard garde le type série et recalcule le dossier', () => {
+    const anim: TMDBResult = { id: 2, title: 'Rick et Morty', year: 2013, animation: true, poster: '', tv: false };
+    expect(applyCard(pack(), anim)).toMatchObject({ kind: 'series', dest: 'series/RickEtMorty' });
+  });
+
+  it('toRequests envoie le dossier sans écrasement', () => {
+    expect(toRequests([pack()])[0].files[0]).toEqual({
+      input: 'https://h/x', name: 'Breaking.Bad.S03.rar', size: 100, dest: 'series/BreakingBad', overwrite: false,
+    });
   });
 });

@@ -1,9 +1,10 @@
 import { JobView, QueueFile, QueueView } from '../api/models';
-import { episodeCells, summarize } from './group';
+import { episodeCells, fileMeta, summarize } from './group';
+import { formatBytes } from '../format';
 
 const file = (over: Partial<QueueFile>): QueueFile => ({
   id: 1, name: 'x.mkv', dest: 'series/TheBoys/S02/TheBoys.S02.E01.mkv', state: 'pending', error: '',
-  bytes: 0, total: 0, speed: 0, attempts: 0, ...over,
+  bytes: 0, total: 0, speed: 0, attempts: 0, phase: '', ...over,
 });
 
 describe('summarize', () => {
@@ -32,5 +33,21 @@ describe('episodeCells', () => {
       { label: 'E03', state: 'running', percent: 62 },
       { label: 'E04', state: 'pending' },
     ]);
+  });
+});
+
+describe('fileMeta', () => {
+  it('affiche la phase extraction sans durée restante', () => {
+    expect(fileMeta(file({ state: 'running', phase: 'extraction', bytes: 45, total: 100, speed: 10 })))
+      .toBe(`Extraction · 45 % · ${formatBytes(45)} / ${formatBytes(100)}`);
+  });
+
+  it('affiche le téléchargement avec la durée restante', () => {
+    expect(fileMeta(file({ state: 'running', bytes: 500, total: 1000, speed: 100 })))
+      .toBe(`50 % · ${formatBytes(500)} / ${formatBytes(1000)} · 5 s`);
+  });
+
+  it('affiche un fichier en attente', () => {
+    expect(fileMeta(file({ state: 'pending', total: 1000 }))).toBe(`en attente · ${formatBytes(1000)}`);
   });
 });
