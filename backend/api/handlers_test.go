@@ -358,3 +358,71 @@ func TestDeezerSearchPresent(t *testing.T) {
 		t.Errorf("albums : %+v", res.Albums)
 	}
 }
+
+func TestQueueCleansDest(t *testing.T) {
+	e := newEnv(t)
+	rec := e.do(http.MethodPost, "/api/queue", queueBody("download/1.part"))
+	if rec.Code != http.StatusBadRequest || decode[ErrorBody](t, rec).Error != "Destination invalide : download/1.part" {
+		t.Errorf("download : %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.do(http.MethodPost, "/api/queue", queueBody("films/A/./A.mkv")); rec.Code != http.StatusCreated {
+		t.Fatalf("ajout : %d %s", rec.Code, rec.Body)
+	}
+	if f := e.files(); len(f) != 1 || f[0].Dest != "films/A/A.mkv" {
+		t.Fatalf("fichiers : %+v", f)
+	}
+	b, _ := json.Marshal(QueueRequest{Kind: naming.Movie, Files: []QueueFile{{Input: "https://h/autre.mkv", Dest: "films//A/A.mkv"}}})
+	if rec := e.do(http.MethodPost, "/api/queue", string(b)); rec.Code != http.StatusConflict {
+		t.Errorf("même destination normalisée : %d %s", rec.Code, rec.Body)
+	}
+}
+
+// withDeezer place devant les sources une source Deezer servie par un faux serveur (album 1, titres 11 et 12).
+func (e *env) withDeezer() {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		track := `{"id":%s,"title":"T%s","track_position":%s,"disk_number":1,"artist":{"name":"Gojira"},"album":{"id":1}}`
+		switch {
+		case r.URL.Path == "/album/1":
+			w.Write([]byte(`{"id":1,"title":"Fortitude","nb_disk":1,"nb_tracks":2,"artist":{"name":"Gojira"}}`)) //nolint:errcheck
+		case r.URL.Path == "/album/1/tracks":
+			w.Write([]byte(`{"data":[` + strings.ReplaceAll(track, "%s", "11") + `,` + strings.ReplaceAll(track, "%s", "12") + `]}`)) //nolint:errcheck
+		case strings.HasPrefix(r.URL.Path, "/track/"):
+			w.Write([]byte(strings.ReplaceAll(track, "%s", path.Base(r.URL.Path)))) //nolint:errcheck
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	e.t.Cleanup(srv.Close)
+	e.h.Sources = append([]source.Source{&source.Deezer{Client: &deezer.Client{APIURL: srv.URL}}}, e.h.Sources...)
+}
+
+func TestQueueDeezer(t *testing.T) {
+	e := newEnv(t)
+	e.withDeezer()
+	rec := e.do(http.MethodPost, "/api/queue", `{"deezer":"deezer:album:1"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("album : %d %s", rec.Code, rec.Body)
+	}
+	if v := decode[JobView](t, rec); v.Kind != naming.Music || v.Title != "Fortitude" || len(v.Files) != 2 ||
+		v.Files[0].Dest != "musics/Gojira/Fortitude/Gojira - Fortitude - 11 - T11.mp3" {
+		t.Errorf("job : %+v", v)
+	}
+	if f := e.files(); len(f) != 2 || f[0].Source != "deezer" || f[0].Input != "deezer:track:11" || f[0].Meta == "" {
+		t.Errorf("fichiers : %+v", f)
+	}
+	if rec := e.do(http.MethodPost, "/api/queue", `{"deezer":"deezer:track:12"}`); rec.Code != http.StatusConflict {
+		t.Errorf("titre déjà dans la file : %d %s", rec.Code, rec.Body)
+	}
+	if n := len(e.files()); n != 2 {
+		t.Errorf("%d fichiers en base", n)
+	}
+}
+
+func TestAnalyzeDeezerLink(t *testing.T) {
+	e := newEnv(t)
+	e.withDeezer()
+	rows := e.analyze("https://www.deezer.com/fr/album/1")
+	if len(rows) != 1 || rows[0].Online || rows[0].Error != "Lien Deezer : utiliser l'onglet Musique" {
+		t.Errorf("lignes : %+v", rows)
+	}
+}

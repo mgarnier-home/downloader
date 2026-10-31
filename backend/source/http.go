@@ -83,6 +83,9 @@ func (h *HTTP) Resolve(ctx context.Context, input string) ([]Item, error) {
 	if resp.StatusCode >= 400 {
 		it.Online, it.Error = false, fmt.Sprintf("Lien hors ligne (HTTP %d)", resp.StatusCode)
 	}
+	if mt, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type")); it.Online && mt == "text/html" {
+		it.Online, it.Error = false, "Page web, pas un fichier" // page d'un hébergeur non reconnu
+	}
 	it.Name = fileName(resp, input)
 	it.Size = size(resp)
 	return []Item{it}, nil

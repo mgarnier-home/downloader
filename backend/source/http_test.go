@@ -103,3 +103,14 @@ func TestHTTPOpenPartial(t *testing.T) {
 	}
 	_ = body.Close()
 }
+
+func TestHTTPResolveHTMLPage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	}))
+	defer srv.Close()
+	items, err := (&HTTP{}).Resolve(context.Background(), srv.URL+"/fichier.mkv")
+	if err != nil || items[0].Online || items[0].Error != "Page web, pas un fichier" {
+		t.Fatalf("err=%v items=%+v", err, items)
+	}
+}

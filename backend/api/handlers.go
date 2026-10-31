@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -206,7 +205,7 @@ func (h *Handlers) deezerSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, a := range res.Albums {
 		al := DeezerAlbum{ID: a.ID, Title: a.Title, Artist: a.Artist, Cover: a.Cover, Year: a.Year, Tracks: a.Tracks}
-		if dir, err := naming.Within(h.MediaDir, path.Join("musics", naming.SafeName(a.Artist), naming.SafeName(a.Title))); err == nil {
+		if dir, err := naming.Within(h.MediaDir, naming.AlbumDir(a.Artist, a.Title)); err == nil {
 			_, err := os.Stat(dir)
 			al.Present = err == nil
 		}

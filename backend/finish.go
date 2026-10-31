@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -59,15 +61,15 @@ func (fz *finisher) music(f store.File, part string) error {
 		if cover, err = fz.get(m.CoverURL, 800); err != nil {
 			return fmt.Errorf("pochette : %w", err)
 		}
-		fz.albumCover(f, m.CoverURL)
+		fz.albumCover(f.ID, naming.AlbumDir(m.Info.AlbumArtist, m.Info.Album), m.CoverURL)
 	}
 	return deezer.WriteTags(part, m, cover)
 }
 
-// albumCover écrit cover.jpg (1200 px) dans le dossier du morceau s'il manque ; un échec est
+// albumCover écrit cover.jpg (1200 px) à la racine de l'album s'il manque ; un échec est
 // seulement journalisé, le morceau suivant de l'album réessaiera.
-func (fz *finisher) albumCover(f store.File, tmpl string) {
-	dir, err := naming.Within(fz.mediaDir, filepath.Dir(f.Dest))
+func (fz *finisher) albumCover(id int64, album, tmpl string) {
+	dir, err := naming.Within(fz.mediaDir, album)
 	if err != nil {
 		return
 	}
@@ -83,13 +85,17 @@ func (fz *finisher) albumCover(f store.File, tmpl string) {
 		err = writeAtomic(p, data)
 	}
 	if err != nil {
-		logger.Warnf("fichier %d : cover.jpg : %v", f.ID, err)
+		logger.Warnf("fichier %d : cover.jpg : %v", id, err)
 	}
 }
 
 func (fz *finisher) get(tmpl string, size int) ([]byte, error) {
 	resp, err := fz.http.Get(strings.ReplaceAll(tmpl, "{size}", strconv.Itoa(size)))
 	if err != nil {
+		var ue *url.Error // l'URL finirait dans l'erreur du fichier, servie par l'API
+		if errors.As(err, &ue) {
+			err = ue.Err
+		}
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()

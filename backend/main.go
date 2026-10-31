@@ -97,11 +97,15 @@ func wire(ctx context.Context, cfg Config, st *store.Store, ix *naming.Index, fr
 	apiHTTP, stream := &http.Client{Timeout: apiTimeout}, streamClient()
 	// Le client AllDebrid sert aussi au flux débridé : pas de délai global.
 	ad := &source.AllDebrid{BaseURL: "https://api.alldebrid.com", Key: cfg.AllDebridKey, HTTP: stream}
-	loadCtx, cancel := context.WithTimeout(ctx, apiTimeout)
-	if err := ad.LoadHosts(loadCtx); err != nil {
-		logger.Errorf("AllDebrid : liste des hébergeurs illisible, liens traités en HTTP direct : %v", err)
+	loadHosts := func(ctx context.Context) error {
+		ctx, cancel := context.WithTimeout(ctx, apiTimeout)
+		defer cancel()
+		return ad.LoadHosts(ctx)
 	}
-	cancel()
+	if err := loadHosts(ctx); err != nil {
+		logger.Errorf("AllDebrid : liste des hébergeurs illisible, nouvel essai dans 1 min : %v", err)
+		go keepLoading(ctx, loadHosts, sleepCtx)
+	}
 	dz := &deezer.Client{ARL: cfg.DeezerARL, HTTP: apiHTTP}
 	sources := []source.Source{&source.Deezer{Client: dz}, ad, &source.HTTP{Client: stream}}
 	fz := &finisher{store: st, index: ix, mediaDir: cfg.MediaDir, http: apiHTTP}
@@ -121,4 +125,32 @@ func wire(ctx context.Context, cfg Config, st *store.Store, ix *naming.Index, fr
 	mux.Handle("GET /version", version.Handler())
 	mux.Handle("/", spaHandler(front))
 	return m, mux
+}
+
+// keepLoading retente load après 1 min, puis en doublant l'attente jusqu'à 1 h, jusqu'au succès
+// ou à l'arrêt.
+func keepLoading(ctx context.Context, load func(context.Context) error, wait func(context.Context, time.Duration) error) {
+	for d := time.Minute; ; d = min(2*d, time.Hour) {
+		if wait(ctx, d) != nil {
+			return
+		}
+		err := load(ctx)
+		if err == nil {
+			logger.Infof("AllDebrid : liste des hébergeurs chargée")
+			return
+		}
+		logger.Warnf("AllDebrid : liste des hébergeurs illisible, nouvel essai dans %s : %v", min(2*d, time.Hour), err)
+	}
+}
+
+// sleepCtx attend d, ou renvoie l'erreur du contexte s'il est annulé avant.
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }

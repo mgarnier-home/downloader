@@ -46,6 +46,9 @@ func (h *Handlers) resolve(ctx context.Context, link string) []AnalyzeRow {
 	if !ok {
 		return []AnalyzeRow{{Input: link, Error: "Lien non reconnu"}}
 	}
+	if s.Name() == "deezer" {
+		return []AnalyzeRow{{Input: link, Error: "Lien Deezer : utiliser l'onglet Musique"}}
+	}
 	items, err := s.Resolve(ctx, link)
 	if err != nil {
 		return []AnalyzeRow{{Input: link, Error: err.Error()}}

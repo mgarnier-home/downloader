@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/mgarnier-home/downloader/backend/deezer"
@@ -123,9 +124,13 @@ func (h *Handlers) deezerJob(ctx context.Context, req QueueRequest) (store.Job, 
 // checkFiles refuse une destination hors de la médiathèque et les doublons au sein de la requête.
 func (h *Handlers) checkFiles(files []store.File) error {
 	seen := map[string]bool{}
-	for _, f := range files {
-		if _, err := naming.Within(h.MediaDir, f.Dest); err != nil {
-			return &httpError{http.StatusBadRequest, "Destination invalide : " + f.Dest}
+	for i := range files {
+		raw := files[i].Dest
+		files[i].Dest = path.Clean(raw) // DestTaken et l'index comparent des chemins normalisés
+		f := files[i]
+		_, err := naming.Within(h.MediaDir, f.Dest)
+		if err != nil || strings.SplitN(f.Dest, "/", 2)[0] == "download" { // download/ : dossier des .part
+			return &httpError{http.StatusBadRequest, "Destination invalide : " + raw}
 		}
 		if seen["d:"+f.Dest] || seen["i:"+f.Input] {
 			return &httpError{http.StatusConflict, "Déjà dans la file : " + f.Dest}
