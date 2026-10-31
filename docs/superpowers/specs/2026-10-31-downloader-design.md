@@ -149,7 +149,8 @@ une source de plus, sans toucher à la file d'attente.
 
 La file et l'historique sont enregistrés dans une base SQLite, `<DOWNLOADER_DATA_DIR>/downloader.db`,
 avec le pilote `modernc.org/sqlite` (Go pur, le binaire reste construit sans CGO). La base est
-ouverte en mode WAL, avec une seule connexion d'écriture.
+ouverte avec `journal_mode=DELETE` (pas de WAL, qui repose sur une mémoire partagée inutilisable sur
+NFS), `busy_timeout=5000` et une seule connexion (`SetMaxOpenConns(1)`).
 
 - Table `jobs` : un ajout de l'utilisateur (une œuvre, un album ou un titre). Colonnes : identifiant,
   type (série, film, animé, musique), titre affiché, fiche TMDB ou Deezer, date de création.
@@ -162,8 +163,11 @@ ouverte en mode WAL, avec une seule connexion d'écriture.
   sont gardés qu'en mémoire : à la reprise, la taille du fichier partiel suffit.
 - L'historique est la liste des fichiers `rangé` ou `erreur`, sans purge dans la v0.1.0.
 
-La base doit être sur un disque local de l'hôte, pas sur un partage NFS, où le verrouillage de
-SQLite n'est pas fiable.
+La base vit sur le partage NFSv4 des données du homelab, comme les autres données de conteneurs.
+C'est acceptable parce qu'un seul processus, sur un seul hôte, y accède, et que NFSv4 gère les
+verrous `fcntl` utilisés par le journal classique. Deux instances ne doivent jamais ouvrir la même
+base. Si la base pose problème, le repli prévu est un disque local répliqué par Litestream, sans
+changement de code.
 
 ## Règles de rangement
 
@@ -261,7 +265,7 @@ remplace le fichier existant au moment du déplacement.
 | ------------------------------ | ------------------------------------- | ---------- |
 | `DOWNLOADER_SERVER_PORT`       | port d'écoute                         | `8080`     |
 | `DOWNLOADER_MEDIA_DIR`         | racine de la médiathèque              | `/media`   |
-| `DOWNLOADER_DATA_DIR`          | dossier de `downloader.db` (local)    | `/data`    |
+| `DOWNLOADER_DATA_DIR`          | dossier de `downloader.db`            | `/data`    |
 | `DOWNLOADER_ALLDEBRID_API_KEY` | clé API AllDebrid                     | (requise)  |
 | `DOWNLOADER_DEEZER_ARL`        | cookie `arl` du compte Deezer         | (requise)  |
 | `DOWNLOADER_TMDB_API_KEY`      | clé API TMDB (lecture)                | (requise)  |
