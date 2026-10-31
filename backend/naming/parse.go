@@ -93,3 +93,26 @@ func ParseFilename(name string) Parsed {
 }
 
 func atoi(s string) int { n, _ := strconv.Atoi(s); return n }
+
+// SeasonOf lit Sxx (ou NxNN) dans un nom quelconque, sans retirer d'extension ; 0 sinon.
+func SeasonOf(s string) int {
+	var p Parsed
+	scanEpisode(s, &p)
+	return p.Season
+}
+
+func hasExt(name string, exts ...string) bool {
+	ext := strings.ToLower(filepath.Ext(name))
+	for _, e := range exts {
+		if ext == e {
+			return true
+		}
+	}
+	return false
+}
+
+// IsPack est vrai pour une archive de série (.zip, .rar).
+func IsPack(name string) bool { return hasExt(name, ".zip", ".rar") }
+
+// IsVideo est vrai pour les extensions vidéo extraites d'un pack.
+func IsVideo(name string) bool { return hasExt(name, ".mkv", ".mp4", ".avi", ".m4v", ".ts") }
