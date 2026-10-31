@@ -1,0 +1,70 @@
+/* Thème sombre unique : fond, un accent violet, couleurs d'état séparées. */
+:root{
+  --bg:#1e1f29; --panel:#232530; --card:#282a36; --line:#343746; --raised:#383a4a;
+  --text:#f8f8f2; --muted:#a4acc4; --accent:#bd93f9; --accent-soft:#3a3354;
+  --ok:#50fa7b; --warn:#ffb86c; --bad:#ff5555; --info:#8be9fd;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.45}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3{text-wrap:balance;margin:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* Briques communes aux quatre onglets (reprises de la maquette). */
+.muted{color:var(--muted)} .num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono);font-size:12.5px}
+.pane{display:grid;gap:16px;max-width:1200px;margin:0 auto}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.toolbar .end{margin-left:auto}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:12.5px;color:var(--muted);white-space:nowrap}
+.chip.bad{color:var(--bad)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none;display:inline-block}
+.dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)} .dot.info{background:var(--info)} .dot.acc{background:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px}
+.card-h{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.card-h h2{font-size:14px;font-weight:600}
+.card-b{padding:14px 16px;display:grid;gap:10px}
+.btn{border:1px solid var(--line);background:var(--raised);padding:8px 14px;border-radius:8px;font-weight:500}
+.btn.primary{background:var(--accent);color:#1e1f29;border-color:var(--accent)}
+.btn.small{padding:4px 10px;font-size:12.5px}
+.btn.ghost{background:none}
+.btn:disabled{opacity:.6;cursor:default}
+.field{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+textarea.field{resize:vertical;font-family:var(--mono);font-size:12.5px;line-height:1.6}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{background:none;border:0;border-right:1px solid var(--line);padding:4px 10px;font-size:12.5px;color:var(--muted)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--text);font-weight:600}
+.path{font-family:var(--mono);font-size:12.5px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 8px;display:inline-block;word-break:break-all}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.tag{font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.tag.serie{color:var(--info);border-color:#8be9fd55}
+.tag.film{color:var(--warn);border-color:#ffb86c55}
+.tag.anime{color:#ff79c6;border-color:#ff79c655}
+.tag.musique{color:var(--ok);border-color:#50fa7b55}
+.tag.bad{color:var(--bad);border-color:#ff555555}
+.qrow{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.qrow:last-child{border-bottom:0}
+.qrow .t{font-weight:500;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.qrow .s{grid-column:1/-1;display:grid;gap:6px}
+.qrow .m{color:var(--muted);font-size:12.5px;text-align:right}
+.err-text{color:var(--bad);font-size:12.5px}
+.empty{padding:14px 16px;color:var(--muted)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-weight:500;color:var(--muted);font-size:12px;padding:8px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.scroll{overflow-x:auto}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.end{margin-left:auto}
+a.btn{text-decoration:none;color:inherit}
+@media (max-width:700px){
+  .qrow{grid-template-columns:1fr}
+  .qrow .m{text-align:left;white-space:normal}
+}

@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquettes Downloader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+/* Fond sombre, un accent violet, couleurs d'état séparées. Une variante par onglet, même jeu de données. */
+:root{
+  --bg:#1e1f29; --panel:#232530; --card:#282a36; --line:#343746; --raised:#383a4a;
+  --text:#f8f8f2; --muted:#a4acc4; --accent:#bd93f9; --accent-soft:#3a3354;
+  --ok:#50fa7b; --warn:#ffb86c; --bad:#ff5555; --info:#8be9fd;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.45}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3{text-wrap:balance;margin:0}
+.mono{font-family:var(--mono);font-size:12.5px}
+.muted{color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+
+/* Sélecteur de variantes */
+.picker{position:sticky;top:0;z-index:10;background:#16171f;border-bottom:1px solid var(--line);padding:12px 16px}
+.picker-in{max-width:1320px;margin:0 auto;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.picker h1{font-size:15px;font-weight:600;margin-right:12px}
+.picker a{padding:8px 14px;border-radius:8px;text-decoration:none;color:var(--muted);border:1px solid var(--line)}
+.picker a[aria-current="page"]{background:var(--accent-soft);color:var(--text);border-color:var(--accent)}
+.picker .note{margin-left:auto;font-size:12px}
+.pitch{margin:16px 0 12px;color:var(--muted);max-width:90ch}
+.pitch strong{color:var(--text)}
+.stage{max-width:1320px;margin:0 auto 48px;padding:0 16px}
+.variant{display:none}
+.variant.on{display:block}
+
+/* Cadre « application » */
+.app{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--bg)}
+.topbar{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.brand{font-weight:600;font-size:16px;display:flex;align-items:center;gap:8px}
+.brand i{width:10px;height:10px;border-radius:3px;background:var(--accent);display:inline-block}
+.tabs{display:flex;gap:4px}
+.tabs button{background:none;border:0;padding:10px 14px;border-radius:8px;color:var(--muted);font-weight:500}
+.tabs button[aria-selected="true"]{background:var(--raised);color:var(--text)}
+.chips{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:12.5px;color:var(--muted);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+.dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)} .dot.info{background:var(--info)} .dot.acc{background:var(--accent)}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px}
+.card-h{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.card-h h2{font-size:14px;font-weight:600}
+.card-b{padding:14px 16px}
+.btn{border:1px solid var(--line);background:var(--raised);padding:8px 14px;border-radius:8px;font-weight:500}
+.btn.primary{background:var(--accent);color:#1e1f29;border-color:var(--accent)}
+.btn.small{padding:4px 10px;font-size:12.5px}
+.btn.ghost{background:none}
+textarea,input.field{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;resize:vertical}
+textarea{font-family:var(--mono);font-size:12.5px;line-height:1.6}
+
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg span{padding:4px 10px;font-size:12.5px;color:var(--muted);border-right:1px solid var(--line)}
+.seg span:last-child{border-right:0}
+.seg span.on{background:var(--accent-soft);color:var(--text)}
+
+.poster{width:44px;height:64px;border-radius:6px;flex:none;display:grid;place-items:center;font-weight:600;font-size:12px;color:#1e1f29}
+.cover{aspect-ratio:1;border-radius:8px;display:grid;place-items:end start;padding:8px;font-weight:600;font-size:12px;color:#fff;text-shadow:0 1px 2px #0008}
+.path{font-family:var(--mono);font-size:12.5px;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 8px;display:inline-block;word-break:break-all}
+.path b{color:var(--accent);font-weight:500}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.bar.ok i{background:var(--ok)}
+.tag{font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.tag.serie{color:var(--info);border-color:#8be9fd55}
+.tag.film{color:var(--warn);border-color:#ffb86c55}
+.tag.anime{color:#ff79c6;border-color:#ff79c655}
+.tag.musique{color:var(--ok);border-color:#50fa7b55}
+.tag.bad{color:var(--bad);border-color:#ff555555}
+
+.qrow{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.qrow:last-child{border-bottom:0}
+.qrow .t{font-weight:500;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.qrow .s{grid-column:1/-1}
+.qrow .m{color:var(--muted);font-size:12.5px;text-align:right;white-space:nowrap}
+
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-weight:500;color:var(--muted);font-size:12px;padding:8px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.scroll{overflow-x:auto}
+
+/* Variante A */
+.a-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:16px;padding:20px}
+.omni{padding:16px;display:grid;gap:10px}
+.omni-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.omni-top .seg span{cursor:pointer}
+.group{display:flex;gap:14px;padding:14px 16px;border-top:1px solid var(--line)}
+.group-b{flex:1;min-width:0;display:grid;gap:8px}
+.group-t{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.group-t h3{font-size:14px;font-weight:600}
+.files{font-family:var(--mono);font-size:12px;color:var(--muted);display:grid;gap:2px}
+.files span b{color:var(--text);font-weight:400}
+.deezer-res{display:none}
+.deezer-mode .links-res{display:none}
+.deezer-mode .deezer-res{display:block}
+.albums{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.album{display:grid;gap:6px}
+.album .n{font-weight:500;font-size:13px}
+.trk{display:grid;grid-template-columns:28px 1fr auto auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+.trk:last-child{border-bottom:0}
+
+/* Variante B */
+.b-pane{display:none;padding:20px}
+.b-pane.on{display:grid;gap:16px}
+.b-row{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+.inp-edit{background:var(--bg);border:1px dashed var(--line);border-radius:6px;padding:4px 8px;font-family:var(--mono);font-size:12.5px;display:inline-block}
+.inp-edit b{color:var(--accent);font-weight:500}
+
+/* Variante C */
+.c-shell{display:grid;grid-template-columns:200px minmax(0,1fr);min-height:640px}
+.side{background:var(--panel);border-right:1px solid var(--line);padding:16px 10px;display:grid;align-content:start;gap:2px}
+.side a{display:flex;justify-content:space-between;padding:9px 12px;border-radius:8px;color:var(--muted);text-decoration:none}
+.side a.on{background:var(--raised);color:var(--text)}
+.side .sep{height:1px;background:var(--line);margin:10px 4px}
+.side .foot{font-size:12px;color:var(--muted);padding:6px 12px;display:grid;gap:6px}
+.c-main{padding:20px;display:grid;gap:16px;align-content:start}
+.quick{display:flex;gap:8px}
+.quick input{flex:1}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+.col{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:10px}
+.col-h{display:flex;align-items:center;gap:8px;padding:4px 6px}
+.col-h h2{font-size:13.5px;font-weight:600}
+.col-h .n{margin-left:auto;color:var(--muted)}
+.kcard{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;gap:8px}
+.kcard.attn{border-left:3px solid var(--warn)}
+.kcard.err{border-left:3px solid var(--bad)}
+.kcard .t{font-weight:500;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.choice{display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:6px}
+.choice.sel{border-color:var(--accent);background:var(--accent-soft)}
+.choice .poster{width:30px;height:44px;font-size:10px}
+
+
+/* Mobile (variante B) */
+.phones{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+.phone{width:390px;max-width:100%;height:844px;border:1px solid var(--line);border-radius:28px;overflow:hidden;display:flex;flex-direction:column;background:var(--bg)}
+.phone-cap{font-size:12.5px;color:var(--muted);margin-bottom:8px}
+.p-top{display:flex;align-items:center;gap:8px;padding:14px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.p-top .chips{gap:6px}
+.p-top .chip{padding:3px 8px;font-size:11.5px}
+.p-body{flex:1;overflow:auto;padding:14px 12px;display:grid;gap:12px;align-content:start}
+.p-nav{display:grid;grid-template-columns:repeat(4,1fr);background:var(--panel);border-top:1px solid var(--line)}
+.p-nav span{text-align:center;padding:12px 4px 16px;color:var(--muted);font-weight:500;font-size:13px;position:relative}
+.p-nav span.on{color:var(--text)}
+.p-nav span.on::before{content:"";position:absolute;top:0;left:30%;right:30%;height:3px;border-radius:0 0 3px 3px;background:var(--accent)}
+.p-nav em{font-style:normal;font-size:11px;background:var(--accent);color:#1e1f29;border-radius:999px;padding:0 6px;margin-left:4px}
+.vcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:8px}
+.vcard .h{display:flex;gap:10px;align-items:center}
+.vcard .h .poster{width:34px;height:50px;font-size:11px}
+.vcard .path{font-size:11.5px}
+.phone .albums{grid-template-columns:repeat(2,minmax(0,1fr))}
+.sticky-cta{position:sticky;bottom:0;padding-top:4px;background:linear-gradient(transparent,var(--bg) 30%)}
+.sticky-cta .btn{width:100%;padding:12px}
+@media (max-width:1000px){
+  .a-grid,.b-row{grid-template-columns:1fr}
+  .cols{grid-template-columns:1fr}
+  .c-shell{grid-template-columns:1fr}
+  .side{grid-auto-flow:column;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line)}
+  .side .sep,.side .foot{display:none}
+  .albums{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<nav class="picker" aria-label="Variantes">
+  <div class="picker-in">
+    <h1>Downloader — maquettes</h1>
+    <a href="#variante-a" data-v="a">A · Une seule barre</a>
+    <a href="#variante-b" data-v="b">B · Bureau</a>
+    <a href="#variante-c" data-v="c">C · Tableau par étapes</a>
+    <a href="#variante-m" data-v="m">B · Mobile</a>
+    <span class="note muted">Données fictives · variante retenue : B</span>
+  </div>
+</nav>
+
+<!-- ========================= VARIANTE A ========================= -->
+<div class="stage">
+<p class="pitch" data-pitch="a"><strong>A · Une seule barre.</strong> Un seul champ pour tout : on y colle des liens d'hébergeurs ou un lien Deezer, ou on tape une recherche Deezer. L'analyse s'affiche juste en dessous, regroupée par œuvre, avec la fiche TMDB trouvée et le chemin final. La file d'attente commune reste visible à droite. Le bouton « Liens collés / Recherche Deezer » montre les deux états du champ.</p>
+<section class="variant" id="v-a" aria-label="Variante A">
+  <div class="app">
+    <header class="topbar">
+      <div class="brand"><i></i>Downloader</div>
+      <div class="chips">
+        <span class="chip"><span class="dot"></span>AllDebrid · premium jusqu'au 12/03/2027</span>
+        <span class="chip"><span class="dot"></span>Deezer · connecté (FLAC)</span>
+        <span class="chip"><span class="dot info"></span>4,1 To libres</span>
+      </div>
+    </header>
+    <div class="a-grid">
+      <div style="display:grid;gap:16px;align-content:start">
+        <div class="card" id="a-omni">
+          <div class="omni">
+            <div class="omni-top">
+              <label for="a-input" style="font-weight:600">Ajouter</label>
+              <span class="seg" role="group" aria-label="État montré dans la maquette">
+                <span class="on" data-amode="links" tabindex="0">Liens collés</span>
+                <span data-amode="deezer" tabindex="0">Recherche Deezer</span>
+              </span>
+              <span class="muted" style="font-size:12.5px;margin-left:auto">Le type de saisie est reconnu tout seul</span>
+            </div>
+            <textarea id="a-input" rows="4" class="links-res">https://1fichier.com/?k3j9x2…  The.Boys.S02E01.MULTi.2160p.WEB.H265-Wawacity.mkv
+https://1fichier.com/?p0a7mz…  The.Boys.S02E02.MULTi.2160p.WEB.H265-Wawacity.mkv
+… 6 autres liens The.Boys.S02E03 à E08
+https://1fichier.com/?w81qde…  Dunkirk.2017.MULTi.1080p.BluRay.x264-LOST.mkv</textarea>
+            <input class="field deezer-res" id="a-search" value="gojira" aria-label="Recherche Deezer">
+          </div>
+
+          <div class="links-res">
+            <div class="group">
+              <div class="poster" style="background:linear-gradient(160deg,#ffb86c,#ff5555)">TB</div>
+              <div class="group-b">
+                <div class="group-t">
+                  <h3>The Boys</h3><span class="muted">2019 · TMDB</span>
+                  <span class="seg"><span class="on">Série</span><span>Film</span><span>Animé</span></span>
+                  <span class="tag">8 épisodes · saison 2</span>
+                  <button class="btn small ghost" style="margin-left:auto">Changer de fiche</button>
+                </div>
+                <div><span class="path">series/<b>TheBoys</b>/<b>S02</b>/<b>TheBoys.S02.E01</b>.mkv</span> <span class="muted">… à E08</span></div>
+                <div class="files"><span>The.Boys.S02E01.MULTi.2160p… → <b>E01</b> · 4,8 Go · <span style="color:var(--ok)">en ligne</span></span><span>The.Boys.S02E02.MULTi.2160p… → <b>E02</b> · 5,1 Go · <span style="color:var(--ok)">en ligne</span></span><span>+ 6 épisodes, tous en ligne</span></div>
+              </div>
+            </div>
+            <div class="group">
+              <div class="poster" style="background:linear-gradient(160deg,#8be9fd,#6272a4)">DK</div>
+              <div class="group-b">
+                <div class="group-t">
+                  <h3>Dunkerque</h3><span class="muted">2017 · TMDB · « Dunkirk »</span>
+                  <span class="seg"><span>Série</span><span class="on">Film</span><span>Animé</span></span>
+                  <button class="btn small ghost" style="margin-left:auto">Changer de fiche</button>
+                </div>
+                <div><span class="path">films/<b>Dunkerque</b>/<b>Dunkerque</b>.mkv</span></div>
+                <div class="files"><span>Dunkirk.2017.MULTi.1080p.BluRay.x264-LOST.mkv · 12,3 Go · <span style="color:var(--ok)">en ligne</span></span></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--line)">
+              <button class="btn ghost">Vider</button>
+              <button class="btn primary">Ajouter 9 fichiers à la file</button>
+            </div>
+          </div>
+
+          <div class="deezer-res" style="border-top:1px solid var(--line)">
+            <div class="card-b" style="display:grid;gap:14px">
+              <div style="display:flex;gap:12px;align-items:center">
+                <div class="cover" style="width:56px;border-radius:50%;background:linear-gradient(135deg,#44475a,#6272a4);place-items:center;padding:0">G</div>
+                <div><div style="font-weight:600">Gojira</div><div class="muted" style="font-size:12.5px">Artiste · 8 albums · déjà 2 dans musics/</div></div>
+                <button class="btn small" style="margin-left:auto">Voir l'artiste</button>
+              </div>
+              <div class="albums">
+                <div class="album"><div class="cover" style="background:linear-gradient(135deg,#2a9d8f,#264653)">Fortitude</div><div class="n">Fortitude</div><div class="muted" style="font-size:12px">2021 · 11 titres</div><button class="btn small primary">Télécharger</button></div>
+                <div class="album"><div class="cover" style="background:linear-gradient(135deg,#e76f51,#6d2e46)">Magma</div><div class="n">Magma</div><div class="muted" style="font-size:12px">2016 · 10 titres</div><button class="btn small" disabled style="opacity:.6">Déjà présent</button></div>
+                <div class="album"><div class="cover" style="background:linear-gradient(135deg,#8d99ae,#2b2d42)">L'Enfant sauvage</div><div class="n">L'Enfant sauvage</div><div class="muted" style="font-size:12px">2012 · 11 titres</div><button class="btn small primary">Télécharger</button></div>
+                <div class="album"><div class="cover" style="background:linear-gradient(135deg,#457b9d,#1d3557)">From Mars to Sirius</div><div class="n">From Mars to Sirius</div><div class="muted" style="font-size:12px">2005 · 12 titres</div><button class="btn small" disabled style="opacity:.6">Déjà présent</button></div>
+              </div>
+              <div>
+                <div class="muted" style="font-size:12px;margin-bottom:4px">Titres</div>
+                <div class="trk"><span class="muted num">01</span><span>Born For One Thing <span class="muted">· Fortitude</span></span><span class="muted num">4:21</span><button class="btn small">+</button></div>
+                <div class="trk"><span class="muted num">02</span><span>Amazonia <span class="muted">· Fortitude</span></span><span class="muted num">5:00</span><button class="btn small">+</button></div>
+                <div class="trk"><span class="muted num">03</span><span>Stranded <span class="muted">· Magma</span></span><span class="muted num">4:31</span><button class="btn small">+</button></div>
+              </div>
+              <div class="muted" style="font-size:12.5px">Rangé dans <span class="path">musics/<b>Gojira</b>/<b>Fortitude</b>/Gojira - Fortitude - 01 - Born For One Thing.flac</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="align-self:start">
+        <div class="card-h"><h2>File d'attente</h2><span class="muted">4 en cours · 7 en attente</span><span class="chip" style="margin-left:auto"><span class="dot acc"></span><span class="num">86 Mo/s</span></span></div>
+        <div class="qrow"><div class="t">TheBoys.S02.E03 <span class="tag serie">Série</span></div><div class="m num">62 % · 3,1 / 5,0 Go</div><div class="s"><div class="bar"><i style="width:62%"></i></div></div></div>
+        <div class="qrow"><div class="t">TheBoys.S02.E04 <span class="tag serie">Série</span></div><div class="m num">18 % · 0,9 / 4,9 Go</div><div class="s"><div class="bar"><i style="width:18%"></i></div></div></div>
+        <div class="qrow"><div class="t">Adele — 30 <span class="tag musique">Album</span></div><div class="m num">7 / 12 titres</div><div class="s"><div class="bar"><i style="width:58%"></i></div></div></div>
+        <div class="qrow"><div class="t">SpiritLIndomptable <span class="tag anime">Animé</span></div><div class="m num">91 % · 3 min</div><div class="s"><div class="bar"><i style="width:91%"></i></div></div></div>
+        <div class="qrow"><div class="t">BulletTrain <span class="tag bad">Erreur</span></div><div class="m"><button class="btn small">Réessayer</button></div><div class="s muted" style="font-size:12.5px">1fichier : fichier supprimé par l'hébergeur</div></div>
+        <div class="card-h" style="border-top:1px solid var(--line)"><h2 class="muted" style="font-weight:500">Terminés aujourd'hui</h2></div>
+        <div class="qrow"><div class="t"><span class="dot"></span>Daft Punk — Random Access Memories</div><div class="m">14:02</div><div class="s"><span class="path">musics/Daft Punk/Random Access Memories/</span></div></div>
+        <div class="qrow"><div class="t"><span class="dot"></span>TheBoys.S02.E01, E02</div><div class="m">13:47</div><div class="s"><span class="path">series/TheBoys/S02/</span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= VARIANTE B ========================= -->
+<p class="pitch" data-pitch="b"><strong>B · Onglets En cours / Vidéos / Musique / Historique.</strong> On arrive sur <strong>En cours</strong>, qui regroupe tous les téléchargements (séries, films, animés, musique) par œuvre ou par album, les erreurs en tête. <strong>Vidéos</strong> sert à coller les liens et à relire le tableau de vérification avant de lancer. <strong>Musique</strong> sert à la recherche Deezer. Les onglets sont cliquables.</p>
+<section class="variant" id="v-b" aria-label="Variante B">
+  <div class="app">
+    <header class="topbar">
+      <div class="brand"><i></i>Downloader</div>
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-btab="run">En cours <span class="tag" style="margin-left:4px">5</span></button>
+        <button role="tab" aria-selected="false" data-btab="video">Vidéos</button>
+        <button role="tab" aria-selected="false" data-btab="music">Musique</button>
+        <button role="tab" aria-selected="false" data-btab="hist">Historique</button>
+      </div>
+      <div class="chips">
+        <span class="chip"><span class="dot"></span>AllDebrid</span>
+        <span class="chip"><span class="dot"></span>Deezer</span>
+        <span class="chip"><span class="dot info"></span>4,1 To libres</span>
+      </div>
+    </header>
+
+    <div class="b-pane on" data-bpane="run">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <span class="chip"><span class="dot acc"></span><span class="num">86 Mo/s</span></span>
+        <span class="chip num">4 actifs · 7 en attente</span>
+        <span class="chip num">reste 31,8 Go · ~6 min</span>
+        <span class="chip" style="color:var(--bad)"><span class="dot bad"></span>1 erreur</span>
+        <span class="seg" style="margin-left:auto"><span class="on">Tout</span><span>Séries</span><span>Films</span><span>Animés</span><span>Musique</span></span>
+        <button class="btn small">Tout mettre en pause</button>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h2>Erreurs</h2><span class="muted">à traiter</span></div>
+        <div class="qrow"><div class="t">BulletTrain <span class="tag film">Film</span></div><div class="m"><button class="btn small">Remplacer le lien</button> <button class="btn small ghost">Retirer</button></div><div class="s muted" style="font-size:12.5px">1fichier : fichier supprimé par l'hébergeur · films/BulletTrain/BulletTrain.mkv</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h2>En cours</h2><span class="muted">regroupés par œuvre ou album</span></div>
+        <div class="qrow">
+          <div class="t">The Boys · saison 2 <span class="tag serie">Série</span><span class="muted num" style="font-weight:400">2 / 8 épisodes rangés</span></div>
+          <div class="m num">E03 62 % · E04 18 % · 4 en attente</div>
+          <div class="s" style="display:grid;gap:6px">
+            <div class="bar"><i style="width:38%"></i></div>
+            <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:4px" aria-label="État des 8 épisodes">
+              <span class="tag" style="text-align:center;color:var(--ok);border-color:#50fa7b55">E01 ✓</span><span class="tag" style="text-align:center;color:var(--ok);border-color:#50fa7b55">E02 ✓</span><span class="tag" style="text-align:center;color:var(--accent);border-color:var(--accent)">E03 62 %</span><span class="tag" style="text-align:center;color:var(--accent);border-color:var(--accent)">E04 18 %</span><span class="tag" style="text-align:center">E05</span><span class="tag" style="text-align:center">E06</span><span class="tag" style="text-align:center">E07</span><span class="tag" style="text-align:center">E08</span>
+            </div>
+            <span class="path">series/TheBoys/S02/</span>
+          </div>
+        </div>
+        <div class="qrow"><div class="t">Spirit : l'indomptable <span class="tag anime">Animé</span></div><div class="m num">91 % · 4,0 / 4,4 Go · 3 min</div><div class="s" style="display:grid;gap:6px"><div class="bar"><i style="width:91%"></i></div><span class="path">animes/SpiritLIndomptable/SpiritLIndomptable.mkv</span></div></div>
+        <div class="qrow"><div class="t">Adele — 30 <span class="tag musique">Album</span></div><div class="m num">7 / 12 titres · FLAC</div><div class="s" style="display:grid;gap:6px"><div class="bar"><i style="width:58%"></i></div><span class="path">musics/Adele/30/</span></div></div>
+        <div class="qrow"><div class="t">Dunkerque <span class="tag film">Film</span></div><div class="m">en attente · 12,3 Go</div><div class="s" style="display:grid;gap:6px"><div class="bar"><i style="width:0%"></i></div><span class="path">films/Dunkerque/Dunkerque.mkv</span></div></div>
+        <div class="qrow"><div class="t">Gojira — Fortitude <span class="tag musique">Album</span></div><div class="m">en attente · 11 titres</div><div class="s" style="display:grid;gap:6px"><div class="bar"><i style="width:0%"></i></div><span class="path">musics/Gojira/Fortitude/</span></div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h2 class="muted" style="font-weight:500">Rangés aujourd'hui</h2><button class="btn small ghost" style="margin-left:auto">Voir l'historique</button></div>
+        <div class="qrow"><div class="t"><span class="dot"></span>Daft Punk — Random Access Memories <span class="tag musique">Album</span></div><div class="m">14:02</div><div class="s"><span class="path">musics/Daft Punk/Random Access Memories/</span></div></div>
+        <div class="qrow"><div class="t"><span class="dot"></span>TheBoys.S02.E01, E02 <span class="tag serie">Série</span></div><div class="m">13:47</div><div class="s"><span class="path">series/TheBoys/S02/</span></div></div>
+      </div>
+    </div>
+
+    <div class="b-pane" data-bpane="video">
+      <div class="card">
+        <div class="card-h"><h2>Liens</h2><span class="muted">1fichier, turbobit, darkibox… débridés par AllDebrid, ou liens HTTP directs</span></div>
+        <div class="card-b" style="display:grid;gap:10px">
+          <textarea rows="3" aria-label="Liens à télécharger">https://1fichier.com/?k3j9x2…
+https://1fichier.com/?p0a7mz…   (+ 7 liens)</textarea>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="muted">9 liens reconnus · 2 œuvres trouvées sur TMDB</span><button class="btn" style="margin-left:auto">Analyser à nouveau</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h2>À vérifier avant de lancer</h2><span class="muted">Cliquez sur une destination pour la modifier</span><button class="btn primary" style="margin-left:auto">Lancer 9 téléchargements</button></div>
+        <div class="scroll">
+        <table>
+          <thead><tr><th>Fichier reçu</th><th>Taille</th><th>Lien</th><th>Fiche TMDB</th><th>Type</th><th>Destination</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">The.Boys.S02E01.MULTi.2160p.WEB…</td><td class="num">4,8 Go</td><td><span class="dot" style="display:inline-block"></span></td><td>The Boys (2019)</td><td><span class="tag serie">Série</span></td><td><span class="inp-edit">series/<b>TheBoys</b>/S02/TheBoys.S02.E01.mkv</span></td></tr>
+            <tr><td class="mono">The.Boys.S02E02.MULTi.2160p.WEB…</td><td class="num">5,1 Go</td><td><span class="dot" style="display:inline-block"></span></td><td>The Boys (2019)</td><td><span class="tag serie">Série</span></td><td><span class="inp-edit">series/<b>TheBoys</b>/S02/TheBoys.S02.E02.mkv</span></td></tr>
+            <tr><td class="mono muted">… E03 à E08 (6 lignes repliées)</td><td class="num muted">29,4 Go</td><td><span class="dot" style="display:inline-block"></span></td><td class="muted">The Boys (2019)</td><td><span class="tag serie">Série</span></td><td><button class="btn small ghost">Déplier</button></td></tr>
+            <tr><td class="mono">Dunkirk.2017.MULTi.1080p.BluRay…</td><td class="num">12,3 Go</td><td><span class="dot" style="display:inline-block"></span></td><td>Dunkerque (2017) <button class="btn small ghost">changer</button></td><td><span class="tag film">Film</span></td><td><span class="inp-edit">films/<b>Dunkerque</b>/Dunkerque.mkv</span></td></tr>
+            <tr><td class="mono">Bullet.Train.2022.MULTi.1080p…</td><td class="num muted">—</td><td><span class="dot bad" style="display:inline-block"></span></td><td colspan="3" style="color:var(--bad)">Lien hors ligne sur 1fichier, il ne sera pas ajouté</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="b-pane" data-bpane="music">
+      <div>
+        <div class="card">
+          <div class="card-h" style="gap:10px">
+            <input class="field" value="gojira" aria-label="Rechercher sur Deezer ou coller un lien Deezer" style="flex:1">
+            <span class="seg"><span class="on">Tout</span><span>Artistes</span><span>Albums</span><span>Titres</span></span>
+          </div>
+          <div class="card-b" style="display:grid;gap:16px">
+            <div style="display:flex;gap:12px;align-items:center">
+              <div class="cover" style="width:56px;border-radius:50%;background:linear-gradient(135deg,#44475a,#6272a4);place-items:center;padding:0">G</div>
+              <div><div style="font-weight:600">Gojira</div><div class="muted" style="font-size:12.5px">Artiste · 8 albums · 2 déjà dans musics/</div></div>
+            </div>
+            <div class="albums">
+              <div class="album"><div class="cover" style="background:linear-gradient(135deg,#2a9d8f,#264653)">Fortitude</div><div class="n">Fortitude</div><div class="muted" style="font-size:12px">2021 · 11 titres</div><button class="btn small primary">Télécharger</button></div>
+              <div class="album"><div class="cover" style="background:linear-gradient(135deg,#e76f51,#6d2e46)">Magma</div><div class="n">Magma</div><div class="muted" style="font-size:12px">2016 · 10 titres</div><button class="btn small" disabled style="opacity:.6">Déjà présent</button></div>
+              <div class="album"><div class="cover" style="background:linear-gradient(135deg,#8d99ae,#2b2d42)">L'Enfant sauvage</div><div class="n">L'Enfant sauvage</div><div class="muted" style="font-size:12px">2012 · 11 titres</div><button class="btn small primary">Télécharger</button></div>
+              <div class="album"><div class="cover" style="background:linear-gradient(135deg,#457b9d,#1d3557)">From Mars to Sirius</div><div class="n">From Mars to Sirius</div><div class="muted" style="font-size:12px">2005 · 12 titres</div><button class="btn small" disabled style="opacity:.6">Déjà présent</button></div>
+            </div>
+            <div>
+              <div class="muted" style="font-size:12px;margin-bottom:4px">Titres</div>
+              <div class="trk"><span class="muted num">01</span><span>Born For One Thing <span class="muted">· Fortitude</span></span><span class="muted num">4:21</span><button class="btn small">+</button></div>
+              <div class="trk"><span class="muted num">02</span><span>Amazonia <span class="muted">· Fortitude</span></span><span class="muted num">5:00</span><button class="btn small">+</button></div>
+              <div class="trk"><span class="muted num">03</span><span>Stranded <span class="muted">· Magma</span></span><span class="muted num">4:31</span><button class="btn small">+</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="b-pane" data-bpane="hist">
+      <div class="card">
+        <div class="card-h"><h2>Historique</h2><span class="seg" style="margin-left:auto"><span class="on">Tout</span><span>Vidéos</span><span>Musique</span><span>Erreurs</span></span></div>
+        <div class="scroll">
+        <table>
+          <thead><tr><th>Terminé</th><th>Élément</th><th>Type</th><th>Taille</th><th>Rangé dans</th></tr></thead>
+          <tbody>
+            <tr><td class="num muted">31/10 14:02</td><td>Random Access Memories</td><td><span class="tag musique">Album</span></td><td class="num">13 titres · 1,0 Go</td><td><span class="path">musics/Daft Punk/Random Access Memories/</span></td></tr>
+            <tr><td class="num muted">31/10 13:47</td><td>TheBoys.S02.E02</td><td><span class="tag serie">Série</span></td><td class="num">5,1 Go</td><td><span class="path">series/TheBoys/S02/</span></td></tr>
+            <tr><td class="num muted">31/10 13:31</td><td>TheBoys.S02.E01</td><td><span class="tag serie">Série</span></td><td class="num">4,8 Go</td><td><span class="path">series/TheBoys/S02/</span></td></tr>
+            <tr><td class="num muted">30/10 21:15</td><td>BulletTrain</td><td><span class="tag bad">Erreur</span></td><td class="num muted">—</td><td style="color:var(--bad)">1fichier : fichier supprimé</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= VARIANTE C ========================= -->
+<p class="pitch" data-pitch="c"><strong>C · Tableau par étapes.</strong> Chaque ajout, vidéo ou musique, avance de colonne en colonne : À valider, En cours, Rangés. Seuls les cas douteux attendent une décision, par exemple deux fiches TMDB possibles ou un épisode introuvable. Le reste passe directement. Le menu de gauche laisse de la place pour plus tard : torrents, réglages des dossiers.</p>
+<section class="variant" id="v-c" aria-label="Variante C">
+  <div class="app">
+    <div class="c-shell">
+      <nav class="side" aria-label="Navigation">
+        <div class="brand" style="padding:4px 12px 14px"><i></i>Downloader</div>
+        <a href="#variante-c" class="on">Tableau <span class="num">14</span></a>
+        <a href="#variante-c">Recherche Deezer</a>
+        <a href="#variante-c">Historique</a>
+        <div class="sep"></div>
+        <a href="#variante-c">Dossiers de rangement</a>
+        <a href="#variante-c">Comptes</a>
+        <div class="sep"></div>
+        <div class="foot">
+          <span><span class="dot" style="display:inline-block"></span> AllDebrid · premium</span>
+          <span><span class="dot" style="display:inline-block"></span> Deezer · FLAC</span>
+          <span><span class="dot info" style="display:inline-block"></span> 4,1 To libres</span>
+          <span class="num"><span class="dot acc" style="display:inline-block"></span> 86 Mo/s</span>
+        </div>
+      </nav>
+      <div class="c-main">
+        <div class="quick">
+          <input class="field" aria-label="Ajouter des liens ou un lien Deezer" placeholder="Collez des liens 1fichier, un lien Deezer…" value="">
+          <button class="btn primary">Ajouter</button>
+        </div>
+        <div class="cols">
+          <div class="col">
+            <div class="col-h"><span class="dot warn"></span><h2>À valider</h2><span class="n num">3</span></div>
+            <div class="kcard attn">
+              <div class="t">Fiche TMDB à choisir <span class="tag">Film ?</span></div>
+              <div class="mono muted">Dune.2021.MULTi.2160p.WEB…mkv</div>
+              <div class="choice sel"><div class="poster" style="background:linear-gradient(160deg,#ffb86c,#c2662d)">D</div><div><div>Dune : Première partie</div><div class="muted" style="font-size:12px">2021 · Denis Villeneuve</div></div></div>
+              <div class="choice"><div class="poster" style="background:linear-gradient(160deg,#a4acc4,#44475a)">D</div><div><div>Dune</div><div class="muted" style="font-size:12px">1984 · David Lynch</div></div></div>
+              <div><span class="path">films/<b>DunePremierePartie</b>/DunePremierePartie.mkv</span></div>
+              <div style="display:flex;gap:8px"><button class="btn small primary">Valider</button><button class="btn small ghost">Modifier le nom</button></div>
+            </div>
+            <div class="kcard attn">
+              <div class="t">Épisode non détecté <span class="tag serie">Série</span></div>
+              <div class="mono muted">Arcane.Bonus.Making.Of.MULTi…mkv</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="seg"><span>S02</span></span><span class="seg"><span>Épisode</span><span class="on">Bonus</span></span></div>
+              <div><span class="path">series/Arcane/S02/<b>Bonus</b>/Arcane.Bonus.Making.Of.mkv</span></div>
+              <div style="display:flex;gap:8px"><button class="btn small primary">Valider</button></div>
+            </div>
+            <div class="kcard err">
+              <div class="t">Lien hors ligne <span class="tag bad">Erreur</span></div>
+              <div class="mono muted">Bullet.Train.2022.MULTi.1080p…</div>
+              <div class="muted" style="font-size:12.5px">1fichier : fichier supprimé par l'hébergeur</div>
+              <div style="display:flex;gap:8px"><button class="btn small">Remplacer le lien</button><button class="btn small ghost">Retirer</button></div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="col-h"><span class="dot acc"></span><h2>En cours</h2><span class="n num">4 · +7</span></div>
+            <div class="kcard"><div class="t">The Boys · S02 <span class="tag serie">Série</span></div><div class="muted num" style="font-size:12.5px">E03 62 % · E04 18 % · 4 en attente</div><div class="bar"><i style="width:38%"></i></div><div class="muted num" style="font-size:12px">2 / 8 épisodes rangés</div></div>
+            <div class="kcard"><div class="t">Adele — 30 <span class="tag musique">Album</span></div><div class="bar"><i style="width:58%"></i></div><div class="muted num" style="font-size:12px">7 / 12 titres · FLAC</div></div>
+            <div class="kcard"><div class="t">Spirit : l'indomptable <span class="tag anime">Animé</span></div><div class="bar"><i style="width:91%"></i></div><div class="muted num" style="font-size:12px">91 % · 3 min restantes</div></div>
+            <div class="kcard"><div class="t">Gojira — Fortitude <span class="tag musique">Album</span></div><div class="bar"><i style="width:0%"></i></div><div class="muted" style="font-size:12px">en attente</div></div>
+          </div>
+          <div class="col">
+            <div class="col-h"><span class="dot"></span><h2>Rangés</h2><span class="n">aujourd'hui</span></div>
+            <div class="kcard"><div class="t">Random Access Memories <span class="tag musique">Album</span></div><span class="path">musics/Daft Punk/Random Access Memories/</span><div class="muted" style="font-size:12px">14:02 · 13 titres</div></div>
+            <div class="kcard"><div class="t">The Boys · S02 E01–E02 <span class="tag serie">Série</span></div><span class="path">series/TheBoys/S02/</span><div class="muted" style="font-size:12px">13:47</div></div>
+            <div class="kcard"><div class="t">Dunkerque <span class="tag film">Film</span></div><span class="path">films/Dunkerque/Dunkerque.mkv</span><div class="muted" style="font-size:12px">11:20 · reconnu tout seul (« Dunkirk »)</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<p class="pitch" data-pitch="m"><strong>B · Mobile (390 × 844).</strong> Les quatre onglets passent dans une barre en bas, et on arrive sur En cours. Le tableau de vérification devient une carte par œuvre : les épisodes d'une même série sont regroupés, et le bouton Lancer reste collé en bas. Un compteur sur En cours indique le nombre d'éléments actifs ou en erreur.</p>
+<section class="variant" id="v-m" aria-label="Variante B, mobile">
+  <div class="phones">
+    <div>
+      <div class="phone-cap">En cours · écran d'accueil</div>
+      <div class="phone">
+        <div class="p-top"><div class="brand"><i></i>Downloader</div><div class="chips"><span class="chip num"><span class="dot acc"></span>86 Mo/s</span></div></div>
+        <div class="p-body">
+          <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip num">4 actifs · 7 en attente</span><span class="chip" style="color:var(--bad)"><span class="dot bad"></span>1 erreur</span></div>
+          <span class="seg" style="justify-self:start"><span class="on">Tout</span><span>Vidéos</span><span>Musique</span></span>
+          <div class="vcard" style="border-left:3px solid var(--bad)"><div class="h"><div style="flex:1;font-weight:500">BulletTrain</div><span class="tag film">Film</span></div><div style="color:var(--bad);font-size:12.5px">1fichier : fichier supprimé</div><div style="display:flex;gap:8px"><button class="btn small">Remplacer le lien</button><button class="btn small ghost">Retirer</button></div></div>
+          <div class="vcard"><div class="h"><div style="flex:1;font-weight:500">The Boys · S02</div><span class="tag serie">Série</span></div><div class="bar"><i style="width:38%"></i></div><div class="muted num" style="font-size:12px">2 / 8 rangés · E03 62 % · E04 18 %</div></div>
+          <div class="vcard"><div class="h"><div style="flex:1;font-weight:500">Spirit : l'indomptable</div><span class="tag anime">Animé</span></div><div class="bar"><i style="width:91%"></i></div><div class="muted num" style="font-size:12px">91 % · 3 min</div></div>
+          <div class="vcard"><div class="h"><div style="flex:1;font-weight:500">Adele — 30</div><span class="tag musique">Album</span></div><div class="bar"><i style="width:58%"></i></div><div class="muted num" style="font-size:12px">7 / 12 titres</div></div>
+          <div class="vcard" style="opacity:.75"><div class="h"><div style="flex:1;font-weight:500">Dunkerque</div><span class="tag film">Film</span></div><div class="muted" style="font-size:12px">en attente · 12,3 Go</div></div>
+          <div class="vcard" style="opacity:.75"><div class="h"><div style="flex:1;font-weight:500">Gojira — Fortitude</div><span class="tag musique">Album</span></div><div class="muted" style="font-size:12px">en attente · 11 titres</div></div>
+        </div>
+        <div class="p-nav"><span class="on">En cours<em>5</em></span><span>Vidéos</span><span>Musique</span><span>Historique</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="phone-cap">Vidéos · vérification avant lancement</div>
+      <div class="phone">
+        <div class="p-top"><div class="brand"><i></i>Downloader</div><div class="chips"><span class="chip"><span class="dot"></span>AllDebrid</span><span class="chip"><span class="dot info"></span>4,1 To</span></div></div>
+        <div class="p-body">
+          <textarea rows="3" aria-label="Liens à télécharger">https://1fichier.com/?k3j9x2…
+https://1fichier.com/?p0a7mz…  (+ 7)</textarea>
+          <div class="muted" style="font-size:12.5px">9 liens reconnus · 2 œuvres trouvées sur TMDB</div>
+          <div class="vcard">
+            <div class="h"><div class="poster" style="background:linear-gradient(160deg,#ffb86c,#ff5555)">TB</div><div style="flex:1;min-width:0"><div style="font-weight:600">The Boys <span class="muted" style="font-weight:400">2019</span></div><div class="muted" style="font-size:12px">8 épisodes · S02 · 39,3 Go</div></div><span class="tag serie">Série</span></div>
+            <span class="path">series/<b>TheBoys</b>/S02/TheBoys.S02.E01…E08.mkv</span>
+            <div style="display:flex;gap:8px"><button class="btn small ghost">Voir les 8 fichiers</button><button class="btn small ghost">Modifier</button></div>
+          </div>
+          <div class="vcard">
+            <div class="h"><div class="poster" style="background:linear-gradient(160deg,#8be9fd,#6272a4)">DK</div><div style="flex:1;min-width:0"><div style="font-weight:600">Dunkerque <span class="muted" style="font-weight:400">2017</span></div><div class="muted" style="font-size:12px">« Dunkirk » · 12,3 Go</div></div><span class="tag film">Film</span></div>
+            <span class="path">films/<b>Dunkerque</b>/Dunkerque.mkv</span>
+            <div style="display:flex;gap:8px"><button class="btn small ghost">Changer de fiche</button><button class="btn small ghost">Modifier</button></div>
+          </div>
+          <div class="vcard" style="border-left:3px solid var(--bad)">
+            <div style="font-weight:500">Bullet.Train.2022.MULTi…</div>
+            <div style="color:var(--bad);font-size:12.5px">Lien hors ligne sur 1fichier, il ne sera pas ajouté</div>
+          </div>
+          <div class="sticky-cta"><button class="btn primary">Lancer 9 téléchargements</button></div>
+        </div>
+        <div class="p-nav"><span>En cours<em>5</em></span><span class="on">Vidéos</span><span>Musique</span><span>Historique</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="phone-cap">Musique · recherche Deezer</div>
+      <div class="phone">
+        <div class="p-top"><div class="brand"><i></i>Downloader</div><div class="chips"><span class="chip"><span class="dot"></span>Deezer · FLAC</span></div></div>
+        <div class="p-body">
+          <input class="field" value="gojira" aria-label="Rechercher sur Deezer ou coller un lien Deezer">
+          <span class="seg" style="justify-self:start"><span class="on">Tout</span><span>Artistes</span><span>Albums</span><span>Titres</span></span>
+          <div class="vcard" style="grid-template-columns:auto 1fr;align-items:center"><div class="cover" style="width:44px;border-radius:50%;background:linear-gradient(135deg,#44475a,#6272a4);place-items:center;padding:0">G</div><div><div style="font-weight:600">Gojira</div><div class="muted" style="font-size:12px">8 albums · 2 déjà dans musics/</div></div></div>
+          <div class="albums">
+            <div class="album"><div class="cover" style="background:linear-gradient(135deg,#2a9d8f,#264653)">Fortitude</div><div class="n">Fortitude</div><div class="muted" style="font-size:12px">2021 · 11 titres</div><button class="btn small primary">Télécharger</button></div>
+            <div class="album"><div class="cover" style="background:linear-gradient(135deg,#e76f51,#6d2e46)">Magma</div><div class="n">Magma</div><div class="muted" style="font-size:12px">2016 · 10 titres</div><button class="btn small" disabled style="opacity:.6">Déjà présent</button></div>
+          </div>
+        </div>
+        <div class="p-nav"><span>En cours<em>5</em></span><span>Vidéos</span><span class="on">Musique</span><span>Historique</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<script>
+const show = () => {
+  const v = (location.hash.match(/^#variante-([abcm])$/) || [, 'b'])[1];
+  document.querySelectorAll('.variant').forEach(s => s.classList.toggle('on', s.id === 'v-' + v));
+  document.querySelectorAll('[data-pitch]').forEach(p => p.hidden = p.dataset.pitch !== v);
+  document.querySelectorAll('.picker a').forEach(a => a.dataset.v === v ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
+};
+addEventListener('hashchange', show); show();
+
+document.querySelectorAll('[data-amode]').forEach(el => {
+  const set = () => {
+    document.getElementById('a-omni').classList.toggle('deezer-mode', el.dataset.amode === 'deezer');
+    document.querySelectorAll('[data-amode]').forEach(o => o.classList.toggle('on', o === el));
+  };
+  el.addEventListener('click', set);
+  el.addEventListener('keydown', e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), set()));
+});
+
+document.querySelectorAll('[data-btab]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-btab]').forEach(o => o.setAttribute('aria-selected', o === b));
+  document.querySelectorAll('[data-bpane]').forEach(p => p.classList.toggle('on', p.dataset.bpane === b.dataset.btab));
+}));
+</script>
+</body>
+</html>

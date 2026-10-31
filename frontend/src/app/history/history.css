@@ -1,0 +1,7 @@
+@media (max-width:700px){
+  .hist,.hist tbody,.hist tr,.hist td{display:block}
+  .hist thead{display:none}
+  .hist tr{padding:10px 12px;border-bottom:1px solid var(--line)}
+  .hist td{border:0;padding:2px 0}
+  .hist td[data-l]::before{content:attr(data-l) " : ";color:var(--muted);font-size:12px}
+}

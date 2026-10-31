@@ -1,0 +1,45 @@
+<div class="pane">
+  <section class="card" aria-labelledby="h-hist">
+    <div class="card-h">
+      <h2 id="h-hist">Historique</h2>
+      <span class="seg end" role="group" aria-label="Filtrer l'historique">
+        @for (f of filters; track f.value) {
+          <button type="button" [attr.aria-pressed]="filter() === f.value" (click)="filter.set(f.value)">{{ f.label }}</button>
+        }
+      </span>
+    </div>
+    @if (history.hasValue()) {
+      @let rows = history.value();
+      @if (rows.length) {
+        <div class="scroll">
+          <table class="hist">
+            <thead><tr><th>Terminé</th><th>Élément</th><th>Type</th><th>Taille</th><th>Rangé dans</th></tr></thead>
+            <tbody>
+              @for (r of rows; track $index) {
+                <tr>
+                  <td class="num muted" data-l="Terminé">{{ when(r.finishedAt) }}</td>
+                  <td data-l="Élément">{{ r.title || r.name }}@if (r.title && r.name && r.title !== r.name) { <div class="mono muted">{{ r.name }}</div> }</td>
+                  <td data-l="Type">
+                    <span [class]="'tag ' + kindClass[r.kind]">{{ kindName[r.kind] }}</span>
+                    @if (r.state === 'error') { <span class="tag bad">Erreur</span> }
+                  </td>
+                  <td class="num" data-l="Taille">{{ r.size > 0 ? formatBytes(r.size) : '—' }}</td>
+                  <td data-l="Rangé dans">
+                    @if (r.state === 'error') { <span class="err-text">{{ r.error || 'Échec du téléchargement' }}</span> }
+                    @else { <span class="path">{{ r.dest }}</span> }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <p class="empty">Rien dans l'historique pour ce filtre.</p>
+      }
+    } @else if (history.error() !== undefined) {
+      <p class="empty err-text" role="alert">Impossible de lire l'historique.</p>
+    } @else {
+      <p class="empty">Chargement…</p>
+    }
+  </section>
+</div>

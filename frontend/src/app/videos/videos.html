@@ -1,0 +1,117 @@
+<div class="pane">
+  <section class="card" aria-labelledby="h-links">
+    <div class="card-h"><h2 id="h-links">Liens</h2><span class="muted">1fichier, turbobit, darkibox… débridés par AllDebrid, ou liens HTTP directs</span></div>
+    <div class="card-b">
+      <label class="sr-only" for="links">Liens à télécharger, un par ligne</label>
+      <textarea id="links" class="field" rows="4" placeholder="Collez les liens, un par ligne"
+                [value]="links()" (input)="links.set($any($event.target).value)"></textarea>
+      <div class="toolbar">
+        @if (rows().length) { <span class="muted" role="status">{{ summary() }}</span> }
+        <button type="button" class="btn end" (click)="analyze()" [disabled]="busy() || !links().trim()">
+          {{ busy() ? 'Analyse…' : rows().length ? 'Analyser à nouveau' : 'Analyser' }}</button>
+      </div>
+      @if (error()) { <p class="err-text" role="alert">{{ error() }}</p> }
+    </div>
+  </section>
+
+  @if (rows().length) {
+    <section class="card" aria-labelledby="h-check">
+      <div class="card-h">
+        <h2 id="h-check">À vérifier avant de lancer</h2><span class="muted">Cliquez sur une destination pour la modifier</span>
+        <button type="button" class="btn primary end launch" (click)="launch()" [disabled]="launching() || count() === 0">
+          {{ launching() ? 'Ajout…' : 'Lancer ' + count() + (count() > 1 ? ' téléchargements' : ' téléchargement') }}</button>
+      </div>
+      <div class="scroll">
+        <table class="rows">
+          <thead><tr><th><span class="sr-only">Inclure</span></th><th>Fichier reçu</th><th>Taille</th><th>Lien</th><th>Fiche TMDB</th><th>Type</th><th>Destination</th></tr></thead>
+          @for (g of groups(); track g.key) {
+            <tbody>
+              @for (i of g.visible; track i) {
+                @let r = rows()[i];
+                <tr [class.off]="!r.online">
+                  <td class="chk"><input type="checkbox" [id]="'chk-' + i" [checked]="r.checked" [disabled]="!r.online || !r.dest"
+                         (change)="patch(i, { checked: $any($event.target).checked })"
+                         [attr.aria-label]="(r.exists ? 'Écraser le fichier existant : ' : 'Inclure ') + r.name"></td>
+                  <td class="mono name" data-l="Fichier">{{ r.name }}@if (r.online && r.error) { <div class="err-text">{{ r.error }}</div> }</td>
+                  <td class="num" data-l="Taille">{{ r.online ? formatBytes(r.size) : '—' }}</td>
+                  <td data-l="Lien"><span class="dot" [class.bad]="!r.online"></span> {{ r.online ? 'en ligne' : 'hors ligne' }}</td>
+                  @if (!r.online) {
+                    <td colspan="3" class="err-text">{{ r.error || 'Lien hors ligne' }}, il ne sera pas ajouté</td>
+                  } @else {
+                    <td data-l="Fiche">
+                      {{ r.tmdb ? r.tmdb.title + ' (' + r.tmdb.year + ')' : 'aucune fiche' }}
+                      @if ($first || !r.tmdb) {
+                        <button type="button" class="btn small ghost" (click)="openPicker(g)" [attr.aria-expanded]="picker()?.key === g.key">{{ r.tmdb ? 'changer' : 'chercher' }}</button>
+                      }
+                    </td>
+                    <td data-l="Type">
+                      <label class="sr-only" [for]="'kind-' + i">Type de {{ r.name }}</label>
+                      <select [id]="'kind-' + i" class="field sel" (change)="setKind(i, $any($event.target).value)">
+                        @if (r.kind === '') { <option value="" selected>Non reconnu</option> }
+                        @for (k of kinds; track k.value) { <option [value]="k.value" [selected]="r.kind === k.value">{{ k.label }}</option> }
+                      </select>
+                      @if (r.kind === 'series' && (r.needsReview || r.bonus || r.episode === 0)) {
+                        <div class="ep">
+                          <label class="sr-only" [for]="'mode-' + i">Épisode ou bonus</label>
+                          <select [id]="'mode-' + i" class="field sel" (change)="retype(i, { bonus: $any($event.target).value === 'bonus' })">
+                            <option value="ep" [selected]="!r.bonus">Numéro d'épisode</option>
+                            <option value="bonus" [selected]="r.bonus">Bonus</option>
+                          </select>
+                          <label class="sr-only" [for]="'s-' + i">Saison</label>
+                          <input [id]="'s-' + i" class="field num-in" type="number" min="0" placeholder="Saison" [value]="r.season" (change)="setNumber(i, 'season', $any($event.target).value)">
+                          @if (!r.bonus) {
+                            <label class="sr-only" [for]="'e-' + i">Épisode</label>
+                            <input [id]="'e-' + i" class="field num-in" type="number" min="0" placeholder="Épisode" [value]="r.episode" (change)="setNumber(i, 'episode', $any($event.target).value)">
+                          }
+                        </div>
+                      }
+                    </td>
+                    <td data-l="Destination">
+                      @if (editing() === i) {
+                        <label class="sr-only" [for]="'dest-' + i">Destination de {{ r.name }}</label>
+                        <input [id]="'dest-' + i" class="field mono" [value]="r.dest" (blur)="setDest(i, $any($event.target).value)"
+                               (keydown.enter)="$any($event.target).blur()" (keydown.escape)="editing.set(-1)">
+                      } @else {
+                        <button type="button" class="dest" (click)="edit(i)" [attr.aria-label]="'Modifier la destination de ' + r.name">{{ r.dest || 'à renseigner' }}</button>
+                      }
+                      @if (r.exists) { <span class="tag film">Déjà présent</span> }
+                      @if (r.needsReview || r.destEdited) { <span class="tag">à relire</span> }
+                      @if (r.message) { <div class="err-text" role="alert">{{ r.message }}</div> }
+                    </td>
+                  }
+                </tr>
+              }
+              @if (g.hidden) {
+                <tr class="fold"><td></td><td colspan="6">
+                  <button type="button" class="btn small ghost" (click)="toggle(g.key)" [attr.aria-expanded]="false">Déplier {{ g.hidden }} {{ g.hidden > 1 ? 'lignes' : 'ligne' }} de plus</button>
+                </td></tr>
+              } @else if (g.idx.length > 2 && rows()[g.idx[0]].kind === 'series') {
+                <tr class="fold"><td></td><td colspan="6">
+                  <button type="button" class="btn small ghost" (click)="toggle(g.key)" [attr.aria-expanded]="true">Replier</button>
+                </td></tr>
+              }
+              @if (picker(); as p) {
+                @if (p.key === g.key) {
+                  <tr class="pick"><td></td><td colspan="6">
+                    <form class="replace" (submit)="$event.preventDefault(); search()">
+                      <label class="sr-only" for="tmdb-q">Rechercher une fiche TMDB</label>
+                      <input id="tmdb-q" class="field" [value]="p.q" (input)="setQuery($any($event.target).value)">
+                      <button class="btn small" [disabled]="p.busy">{{ p.busy ? 'Recherche…' : 'Chercher' }}</button>
+                    </form>
+                    @if (p.error) { <p class="err-text" role="alert">{{ p.error }}</p> }
+                    <ul class="results">
+                      @for (t of p.results; track t.id) {
+                        <li><button type="button" class="btn small" (click)="choose(g, t)">Choisir</button>
+                          {{ t.title }} ({{ t.year }}) <span class="muted">{{ t.tv ? 'série' : 'film' }}{{ t.animation ? ' · animation' : '' }}</span></li>
+                      }
+                    </ul>
+                  </td></tr>
+                }
+              }
+            </tbody>
+          }
+        </table>
+      </div>
+    </section>
+  }
+</div>

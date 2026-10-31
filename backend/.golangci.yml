@@ -1,0 +1,24 @@
+version: "2"
+linters:
+  enable:
+    - funlen
+    - gocognit
+    - nestif
+    - unparam
+  settings:
+    funlen:
+      lines: 60
+      statements: 40
+    gocognit:
+      min-complexity: 15
+    nestif:
+      min-complexity: 4
+  exclusions:
+    rules:
+      # Les messages d'erreur, en français, commencent par le nom du service (« Deezer : … »).
+      - path: (^|/)deezer/|source/deezer\.go
+        linters: [staticcheck]
+        text: ST1005
+formatters:
+  enable:
+    - gofmt

@@ -1,0 +1,58 @@
+name: Publish
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      date: ${{ steps.check.outputs.date }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag invalide : $TAG" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Le tag doit pointer un commit de main" >&2
+            exit 1
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+  image:
+    name: Image
+    needs: version
+    runs-on: linux/amd64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build et push
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          DATE: ${{ needs.version.outputs.date }}
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg VERSION="$VERSION" \
+            --build-arg COMMIT="$GITHUB_SHA" \
+            --build-arg DATE="$DATE" \
+            --tag "mgarnier11/downloader:$VERSION" \
+            --tag mgarnier11/downloader:latest \
+            --push .
