@@ -46,11 +46,12 @@
                     </td>
                     <td data-l="Type">
                       <label class="sr-only" [for]="'kind-' + i">Type de {{ r.name }}</label>
-                      <select [id]="'kind-' + i" class="field sel" (change)="setKind(i, $any($event.target).value)">
+                      <select [id]="'kind-' + i" class="field sel" [disabled]="r.pack" (change)="setKind(i, $any($event.target).value)">
                         @if (r.kind === '') { <option value="" selected>Non reconnu</option> }
                         @for (k of kinds; track k.value) { <option [value]="k.value" [selected]="r.kind === k.value">{{ k.label }}</option> }
                       </select>
-                      @if (r.kind === 'series' && (r.needsReview || r.bonus || r.episode === 0)) {
+                      @if (r.pack) { <span class="tag serie">Pack</span> }
+                      @else if (r.kind === 'series' && (r.needsReview || r.bonus || r.episode === 0)) {
                         <div class="ep">
                           <label class="sr-only" [for]="'mode-' + i">Épisode ou bonus</label>
                           <select [id]="'mode-' + i" class="field sel" (change)="retype(i, { bonus: $any($event.target).value === 'bonus' })">
@@ -72,7 +73,7 @@
                         <input [id]="'dest-' + i" class="field mono" [value]="r.dest" (blur)="setDest(i, $any($event.target).value)"
                                (keydown.enter)="$any($event.target).blur()" (keydown.escape)="editing.set(-1)">
                       } @else {
-                        <button type="button" class="dest" (click)="edit(i)" [attr.aria-label]="'Modifier la destination de ' + r.name">{{ r.dest || 'à renseigner' }}</button>
+                        <button type="button" class="dest" (click)="edit(i)" [attr.aria-label]="'Modifier la destination de ' + r.name">{{ r.dest ? r.dest + (r.pack ? '/' : '') : 'à renseigner' }}</button>
                       }
                       @if (r.exists) { <span class="tag film">Déjà présent</span> }
                       @if (r.needsReview || r.destEdited) { <span class="tag">à relire</span> }

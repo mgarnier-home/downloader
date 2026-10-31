@@ -22,3 +22,27 @@ func TestParseFilename(t *testing.T) {
 		}
 	}
 }
+
+func TestIsPack(t *testing.T) {
+	for in, want := range map[string]bool{"a.rar": true, "A.ZIP": true, "a.mkv": false, "a.part1.rar.mkv": false, "rar": false} {
+		if got := IsPack(in); got != want {
+			t.Errorf("IsPack(%q) = %v, attendu %v", in, got, want)
+		}
+	}
+}
+
+func TestIsVideo(t *testing.T) {
+	for in, want := range map[string]bool{"a.MKV": true, "b.ts": true, "c.mp4": true, "a.srt": false, "a.nfo": false} {
+		if got := IsVideo(in); got != want {
+			t.Errorf("IsVideo(%q) = %v, attendu %v", in, got, want)
+		}
+	}
+}
+
+func TestSeasonOf(t *testing.T) {
+	for in, want := range map[string]int{"S02": 2, "Breaking.Bad.S03": 3, "Saison 2": 0, ".": 0} {
+		if got := SeasonOf(in); got != want {
+			t.Errorf("SeasonOf(%q) = %d, attendu %d", in, got, want)
+		}
+	}
+}

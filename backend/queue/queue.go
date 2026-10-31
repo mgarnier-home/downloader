@@ -19,6 +19,7 @@ import (
 type Progress struct {
 	Bytes, Total int64
 	Speed        float64
+	Phase        string // "" pendant le téléchargement, "extraction" pendant celle d'un pack
 }
 
 const (
@@ -35,7 +36,8 @@ type Manager struct {
 	VideoLimit, MusicLimit int
 	Delays                 []time.Duration                            // attente avant chaque nouvelle tentative
 	Sleep                  func(context.Context, time.Duration) error // remplaçable en test
-	Finish                 func(f store.File, path string) error      // appelé sur le .part, avant le déplacement
+	// Finish est appelé sur le .part, avant le déplacement ; pour un pack, il range tout lui-même.
+	Finish func(ctx context.Context, f store.File, part string, progress func(done, total int64)) error
 
 	mu      sync.Mutex
 	wake    chan struct{}
@@ -55,6 +57,7 @@ type transfer struct {
 	done    chan struct{}
 	music   bool
 	removed bool // interrompu par Cancel : l'état en base ne change pas
+	phase   string
 	bytes   int64
 	total   int64
 	samples []sample
@@ -186,7 +189,11 @@ func (m *Manager) Progress() map[int64]Progress {
 	now := time.Now()
 	out := make(map[int64]Progress, len(m.running))
 	for id, t := range m.running {
-		out[id] = Progress{Bytes: t.bytes, Total: t.total, Speed: t.speed(now)}
+		p := Progress{Bytes: t.bytes, Total: t.total, Phase: t.phase}
+		if t.phase == "" {
+			p.Speed = t.speed(now)
+		}
+		out[id] = p
 	}
 	return out
 }

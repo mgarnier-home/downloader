@@ -87,6 +87,16 @@ func (h *Handlers) videoJob(req QueueRequest) (store.Job, []store.File, error) {
 			return store.Job{}, nil, &httpError{http.StatusBadRequest, "Lien non reconnu : " + f.Name}
 		}
 		files[i] = store.File{Source: s.Name(), Input: input, OriginalName: f.Name, Size: f.Size, Dest: f.Dest, Overwrite: f.Overwrite}
+		if naming.IsPack(f.Name) {
+			// Un pack vise le dossier de sa série, qu'il ne remplace jamais.
+			if req.Kind != naming.Series {
+				return store.Job{}, nil, &httpError{http.StatusBadRequest, "Type invalide pour un pack : " + string(req.Kind)}
+			}
+			if parts := strings.Split(path.Clean(f.Dest), "/"); len(parts) != 2 || parts[0] != "series" {
+				return store.Job{}, nil, &httpError{http.StatusBadRequest, "Destination invalide : " + f.Dest}
+			}
+			files[i].Overwrite, files[i].Meta = false, `{"pack":{}}`
+		}
 	}
 	return store.Job{Kind: req.Kind, Title: req.Title, Ref: req.Ref}, files, nil
 }
@@ -132,10 +142,14 @@ func (h *Handlers) checkFiles(files []store.File) error {
 		if err != nil || strings.SplitN(f.Dest, "/", 2)[0] == "download" { // download/ : dossier des .part
 			return &httpError{http.StatusBadRequest, "Destination invalide : " + raw}
 		}
-		if seen["d:"+f.Dest] || seen["i:"+f.Input] {
+		pack := naming.IsPack(f.OriginalName) // destination partagée : seul le lien compte
+		if !pack && seen["d:"+f.Dest] || seen["i:"+f.Input] {
 			return &httpError{http.StatusConflict, "Déjà dans la file : " + f.Dest}
 		}
-		seen["d:"+f.Dest], seen["i:"+f.Input] = true, true
+		seen["i:"+f.Input] = true
+		if !pack {
+			seen["d:"+f.Dest] = true
+		}
 	}
 	return nil
 }
@@ -143,9 +157,12 @@ func (h *Handlers) checkFiles(files []store.File) error {
 // checkQueued refuse une destination ou un lien déjà présents dans un fichier non terminé.
 func (h *Handlers) checkQueued(files []store.File) error {
 	for _, f := range files {
-		dest, err := h.Store.DestTaken(f.Dest)
-		if err != nil {
-			return err
+		dest := false
+		if !naming.IsPack(f.OriginalName) {
+			var err error
+			if dest, err = h.Store.DestTaken(f.Dest); err != nil {
+				return err
+			}
 		}
 		input, err := h.Store.InputTaken(f.Input)
 		if err != nil {

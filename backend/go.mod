@@ -5,6 +5,7 @@ go 1.26.4
 require (
 	github.com/bogem/id3v2/v2 v2.1.4
 	github.com/mgarnier-home/utils v1.4.0
+	github.com/nwaples/rardecode/v2 v2.4.5
 	golang.org/x/crypto v0.58.0
 	modernc.org/sqlite v1.61.1
 )

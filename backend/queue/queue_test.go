@@ -313,7 +313,7 @@ func TestMoveFailureKeepsPart(t *testing.T) {
 	var fail atomic.Bool
 	fail.Store(true)
 	var finished []string
-	e.m.Finish = func(_ store.File, path string) error {
+	e.m.Finish = func(_ context.Context, _ store.File, path string, _ func(int64, int64)) error {
 		if fail.Load() {
 			return errors.New("tags illisibles")
 		}
@@ -492,5 +492,79 @@ func TestSpeedSamplesBounded(t *testing.T) {
 	}
 	if n := len(tr.samples); n > 60 {
 		t.Fatalf("%d points gardés, attendu au plus 60 (fenêtre de 5 s)", n)
+	}
+}
+
+func (e *env) addPack(input string) store.File {
+	e.t.Helper()
+	_, files, err := e.st.CreateJob(store.Job{Kind: naming.Series, Title: "Serie"},
+		[]store.File{{Source: "http", Input: input, OriginalName: "Serie.S01.rar", Size: int64(len(content)), Dest: "series/Serie"}})
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	e.m.Wake()
+	return files[0]
+}
+
+func TestPackDelegated(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(serveContent))
+	t.Cleanup(srv.Close)
+	e := newEnv(t)
+	var seen Progress
+	var gotPart string
+	e.m.Finish = func(_ context.Context, f store.File, part string, progress func(int64, int64)) error {
+		gotPart = part
+		progress(5, 10)
+		seen = e.m.Progress()[f.ID]
+		return nil
+	}
+	e.run()
+	f := e.addPack(srv.URL + "/p.rar")
+	e.waitState(f.ID, store.StateDone)
+	if seen != (Progress{Bytes: 5, Total: 10, Phase: "extraction"}) {
+		t.Fatalf("progression pendant l'extraction : %+v", seen)
+	}
+	if gotPart != e.part(f.ID) {
+		t.Fatalf("Finish appelé avec %q", gotPart)
+	}
+	if _, err := os.Stat(e.part(f.ID)); !os.IsNotExist(err) {
+		t.Fatalf(".part toujours présent : %v", err)
+	}
+	if _, err := os.Stat(e.dest("series/Serie")); !os.IsNotExist(err) {
+		t.Fatalf("le .part a été déplacé vers le dossier : %v", err)
+	}
+}
+
+func TestPackErrorKeepsPart(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(serveContent))
+	t.Cleanup(srv.Close)
+	e := newEnv(t)
+	e.m.Finish = func(context.Context, store.File, string, func(int64, int64)) error {
+		return errors.New("Aucune vidéo dans l'archive") //nolint:staticcheck // message affiché tel quel
+	}
+	e.run()
+	f := e.addPack(srv.URL + "/p.rar")
+	if got := e.waitState(f.ID, store.StateError); got.Error != "Aucune vidéo dans l'archive" {
+		t.Fatalf("message : %q", got.Error)
+	}
+	if !bytes.Equal(readFile(t, e.part(f.ID)), content) {
+		t.Fatal(".part absent ou incomplet")
+	}
+}
+
+func TestPackExistingFolder(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(serveContent))
+	t.Cleanup(srv.Close)
+	e := newEnv(t)
+	if err := os.MkdirAll(e.dest("series/Serie"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var called atomic.Bool
+	e.m.Finish = func(context.Context, store.File, string, func(int64, int64)) error { called.Store(true); return nil }
+	e.run()
+	f := e.addPack(srv.URL + "/p.rar")
+	e.waitState(f.ID, store.StateDone)
+	if !called.Load() {
+		t.Fatal("Finish non appelé")
 	}
 }

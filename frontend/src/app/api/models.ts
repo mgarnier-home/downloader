@@ -30,6 +30,8 @@ export interface AnalyzeRow {
   needsReview: boolean;
   dest: string;
   exists: boolean;
+  /** Archive de série : `dest` est le dossier de la série, les épisodes se rangent après extraction. */
+  pack: boolean;
 }
 
 export interface DeezerArtist { id: number; name: string; picture: string }
@@ -70,6 +72,7 @@ export interface QueueFile {
   total: number;
   speed: number;
   attempts: number;
+  phase: '' | 'extraction';
 }
 export interface JobView {
   id: number;
@@ -83,6 +86,8 @@ export interface QueueView {
   jobs: JobView[];
 }
 
+export interface PackReport { placed: number; present: number; bonus: number }
+
 export type HistoryFilter = 'all' | 'video' | 'music' | 'error';
 export interface HistoryEntry {
   finishedAt: string;
@@ -93,4 +98,5 @@ export interface HistoryEntry {
   size: number;
   state: FileState;
   error: string;
+  pack: PackReport | null;
 }

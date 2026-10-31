@@ -18,7 +18,8 @@
               @for (r of rows; track $index) {
                 <tr>
                   <td class="num muted" data-l="Terminé">{{ when(r.finishedAt) }}</td>
-                  <td data-l="Élément">{{ r.title || r.name }}@if (r.title && r.name && r.title !== r.name) { <div class="mono muted">{{ r.name }}</div> }</td>
+                  <td data-l="Élément">{{ r.title || r.name }}@if (r.title && r.name && r.title !== r.name) { <div class="mono muted">{{ r.name }}</div> }
+                    @if (r.pack && r.state !== 'error') { <div class="muted">{{ packSummary(r.pack) }}</div> }</td>
                   <td data-l="Type">
                     <span [class]="'tag ' + kindClass[r.kind]">{{ kindName[r.kind] }}</span>
                     @if (r.state === 'error') { <span class="tag bad">Erreur</span> }
@@ -26,7 +27,7 @@
                   <td class="num" data-l="Taille">{{ r.size > 0 ? formatBytes(r.size) : '—' }}</td>
                   <td data-l="Rangé dans">
                     @if (r.state === 'error') { <span class="err-text">{{ r.error || 'Échec du téléchargement' }}</span> }
-                    @else { <span class="path">{{ r.dest }}</span> }
+                    @else { <span class="path">{{ r.dest }}{{ r.pack ? '/' : '' }}</span> }
                   </td>
                 </tr>
               }

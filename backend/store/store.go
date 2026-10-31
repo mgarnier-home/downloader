@@ -42,6 +42,17 @@ type File struct {
 	Meta                        string // JSON opaque propre à la source
 }
 
+// PackReport est le bilan d'un pack, rangé dans File.Meta sous la clé "pack".
+type PackReport struct {
+	Placed  int `json:"placed"`  // épisodes rangés
+	Present int `json:"present"` // vidéos déjà présentes, non écrasées
+	Bonus   int `json:"bonus"`   // bonus rangés
+}
+
+type PackMeta struct {
+	Pack *PackReport `json:"pack"`
+}
+
 type Store struct{ db *sql.DB }
 
 const schema = `
@@ -179,6 +190,11 @@ func (s *Store) SetState(id int64, st State, errMsg string) error {
 		arg = nil
 	}
 	return s.exec(q, st, errMsg, arg, id)
+}
+
+// SetMeta remplace le JSON propre au fichier (bilan d'un pack).
+func (s *Store) SetMeta(id int64, meta string) error {
+	return s.exec(`UPDATE files SET meta=? WHERE id=?`, meta, id)
 }
 
 func (s *Store) IncAttempts(id int64) error {

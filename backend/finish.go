@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,18 +27,25 @@ type finisher struct {
 	index    *naming.Index
 	mediaDir string
 	http     *http.Client
+	free     func(dir string) (int64, error) // espace libre ; nil : statfs
 }
 
 var kindDirs = map[naming.Kind]string{naming.Series: "series", naming.Movie: "films", naming.Anime: "animes"}
 
 const maxCover = 20 << 20
 
-func (fz *finisher) finish(f store.File, part string) error {
+func (fz *finisher) finish(ctx context.Context, f store.File, part string, progress func(done, total int64)) error {
 	jobs, err := fz.store.Jobs([]int64{f.JobID})
 	if err != nil {
 		return err
 	}
 	j := jobs[f.JobID]
+	if naming.IsPack(f.OriginalName) { // même critère que la file, qui supprime le .part après succès
+		if j.Kind != naming.Series {
+			return errors.New("Un pack doit être rangé comme une série") //nolint:staticcheck // message affiché tel quel
+		}
+		return fz.pack(ctx, f, j, part, progress)
+	}
 	if j.Kind == naming.Music {
 		return fz.music(f, part)
 	}

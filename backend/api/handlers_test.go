@@ -459,3 +459,131 @@ func TestAnalyzeDeezerLink(t *testing.T) {
 		t.Errorf("lignes : %+v", rows)
 	}
 }
+
+const breakingBad = `{"results":[{"id":1396,"name":"Breaking Bad","first_air_date":"2008-01-20"}]}`
+
+func TestAnalyzePack(t *testing.T) {
+	e := newEnv(t)
+	e.tmdbBody["/search/tv"] = breakingBad
+	r := e.analyze("https://h/Breaking.Bad.Integrale.MULTI.1080p.rar")[0]
+	if !r.Pack || r.Kind != naming.Series || r.TMDB == nil || r.TMDB.ID != 1396 || r.Dest != "series/BreakingBad" || r.Exists || r.NeedsReview {
+		t.Errorf("ligne : %+v", r)
+	}
+}
+
+func TestAnalyzePackSeasonAndFolder(t *testing.T) {
+	e := newEnv(t)
+	e.tmdbBody["/search/tv"] = breakingBad
+	e.h.Index.Add(naming.Series, 1396, "Breaking_Bad")
+	r := e.analyze("https://h/Breaking.Bad.S03.rar")[0]
+	if !r.Pack || r.Season != 3 || r.Dest != "series/Breaking_Bad" {
+		t.Errorf("ligne : %+v", r)
+	}
+}
+
+func packBody(kind naming.Kind, dests ...string) string {
+	var files []QueueFile
+	for i, d := range dests {
+		files = append(files, QueueFile{Input: "https://h/p" + strconv.Itoa(i) + ".rar", Name: "Breaking.Bad.S0" + strconv.Itoa(i+1) + ".rar", Size: 10, Dest: d})
+	}
+	b, _ := json.Marshal(QueueRequest{Kind: kind, Title: "Breaking Bad", Ref: "tmdb:1396", Files: files})
+	return string(b)
+}
+
+func TestQueueTwoPacksSameSeries(t *testing.T) {
+	e := newEnv(t)
+	if rec := e.do(http.MethodPost, "/api/queue", packBody(naming.Series, "series/BreakingBad", "series/BreakingBad")); rec.Code != http.StatusCreated {
+		t.Fatalf("deux packs : %d %s", rec.Code, rec.Body)
+	}
+	b, _ := json.Marshal(QueueRequest{Kind: naming.Series, Title: "Breaking Bad", Ref: "tmdb:1396",
+		Files: []QueueFile{{Input: "https://h/autre.rar", Name: "Breaking.Bad.S03.rar", Size: 10, Dest: "series/BreakingBad"}}})
+	if rec := e.do(http.MethodPost, "/api/queue", string(b)); rec.Code != http.StatusCreated {
+		t.Fatalf("troisième pack : %d %s", rec.Code, rec.Body)
+	}
+	for _, f := range e.files() {
+		if f.Meta != `{"pack":{}}` {
+			t.Errorf("meta de %s : %q", f.OriginalName, f.Meta)
+		}
+	}
+	if rec := e.do(http.MethodPost, "/api/queue", string(b)); rec.Code != http.StatusConflict {
+		t.Errorf("même lien : %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestQueuePackBadDest(t *testing.T) {
+	e := newEnv(t)
+	for _, d := range []string{"series/A/B", "films/A", "series"} {
+		rec := e.do(http.MethodPost, "/api/queue", packBody(naming.Series, d))
+		if rec.Code != http.StatusBadRequest || decode[ErrorBody](t, rec).Error != "Destination invalide : "+d {
+			t.Errorf("%s : %d %s", d, rec.Code, rec.Body)
+		}
+	}
+	rec := e.do(http.MethodPost, "/api/queue", packBody(naming.Movie, "series/A"))
+	if rec.Code != http.StatusBadRequest || !strings.HasPrefix(decode[ErrorBody](t, rec).Error, "Type invalide") {
+		t.Errorf("film : %d %s", rec.Code, rec.Body)
+	}
+	if n := len(e.files()); n != 0 {
+		t.Errorf("%d fichiers en base", n)
+	}
+}
+
+func TestFileViewPhase(t *testing.T) {
+	v := fileView(store.File{ID: 7, State: store.StateRunning}, map[int64]queue.Progress{7: {Bytes: 5, Total: 10, Phase: "extraction"}})
+	if v.Phase != "extraction" || v.Bytes != 5 || v.Total != 10 {
+		t.Errorf("vue : %+v", v)
+	}
+}
+
+func TestHistoryPack(t *testing.T) {
+	e := newEnv(t)
+	_, files, err := e.h.Store.CreateJob(store.Job{Kind: naming.Series, Title: "Breaking Bad"}, []store.File{
+		{Source: "fake", Input: "https://h/p.rar", OriginalName: "Breaking.Bad.rar", Dest: "series/BreakingBad", Meta: `{"pack":{"placed":62,"present":2,"bonus":1}}`},
+		{Source: "fake", Input: "https://h/e.mkv", OriginalName: "Breaking.Bad.S01E01.mkv", Dest: "series/BreakingBad/S01/BreakingBad.S01.E01.mkv"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		_ = e.h.Store.SetState(f.ID, store.StateDone, "")
+	}
+	rows := decode[[]HistoryRow](t, e.do(http.MethodGet, "/api/history", ""))
+	byName := map[string]HistoryRow{}
+	for _, r := range rows {
+		byName[r.Name] = r
+	}
+	if p := byName["Breaking.Bad.rar"].Pack; p == nil || *p != (store.PackReport{Placed: 62, Present: 2, Bonus: 1}) {
+		t.Errorf("bilan du pack : %+v", p)
+	}
+	if p := byName["Breaking.Bad.S01E01.mkv"].Pack; p != nil {
+		t.Errorf("bilan sur un épisode : %+v", p)
+	}
+}
+
+func TestReplacePack(t *testing.T) {
+	e := newEnv(t)
+	_, files, err := e.h.Store.CreateJob(store.Job{Kind: naming.Series, Title: "Breaking Bad"}, []store.File{
+		{Source: "fake", Input: "https://h/old.rar", OriginalName: "Breaking.Bad.S01.rar", Size: 10, Dest: "series/BreakingBad", Meta: `{"pack":{}}`},
+		{Source: "fake", Input: "https://h/old.mkv", OriginalName: "Breaking.Bad.S01E01.mkv", Size: 10, Dest: "series/BreakingBad/S01/BreakingBad.S01.E01.mkv"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		_ = e.h.Store.SetState(f.ID, store.StateError, "lien mort")
+	}
+	replace := func(id int64, input string) *httptest.ResponseRecorder {
+		return e.do(http.MethodPost, "/api/files/"+itoa(id)+"/replace", `{"input":"`+input+`"}`)
+	}
+	for id, input := range map[int64]string{files[0].ID: "https://h/ep.mkv", files[1].ID: "https://h/pack.rar"} {
+		rec := replace(id, input)
+		if rec.Code != http.StatusBadRequest || decode[ErrorBody](t, rec).Error != "Un pack ne se remplace que par un pack" {
+			t.Errorf("%s : %d %s", input, rec.Code, rec.Body)
+		}
+	}
+	if rec := replace(files[0].ID, "https://h/Breaking.Bad.S01.v2.zip"); rec.Code != http.StatusNoContent {
+		t.Fatalf("pack par pack : %d %s", rec.Code, rec.Body)
+	}
+	if f := e.files()[0]; f.Dest != "series/BreakingBad" || f.OriginalName != "Breaking.Bad.S01.v2.zip" {
+		t.Errorf("pack remplacé : %+v", f)
+	}
+}
