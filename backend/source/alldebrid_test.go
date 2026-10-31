@@ -2,6 +2,8 @@ package source
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,7 +19,7 @@ func (f fakeSource) Match(in string) bool                                 { retu
 func (f fakeSource) Resolve(context.Context, string) ([]Item, error)      { return nil, nil }
 func (f fakeSource) Reopen(context.Context, string, string) (Item, error) { return Item{}, nil }
 
-func adServer(t *testing.T, infos, unlock string, direct http.HandlerFunc) *AllDebrid {
+func adServer(t *testing.T, infos, unlock string, direct http.HandlerFunc, over ...map[string]http.HandlerFunc) *AllDebrid {
 	t.Helper()
 	var srv *httptest.Server
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -34,6 +36,11 @@ func adServer(t *testing.T, infos, unlock string, direct http.HandlerFunc) *AllD
 		if r.URL.Query().Get("agent") != "downloader" {
 			t.Errorf("agent absent sur %s", r.URL)
 		}
+		if len(over) > 0 && over[0][r.URL.Path] != nil {
+			over[0][r.URL.Path](w, r)
+			return
+		}
+		requirePost(t, r)
 		switch r.URL.Path {
 		case "/v4/hosts":
 			_, _ = w.Write([]byte(`{"status":"success","data":{"hosts":{"1fichier":{"name":"1fichier","domains":["1fichier.com","alterupload.com"]}},"streams":{},"redirectors":{}}}`))
@@ -48,7 +55,7 @@ func adServer(t *testing.T, infos, unlock string, direct http.HandlerFunc) *AllD
 		}
 	}))
 	t.Cleanup(srv.Close)
-	return &AllDebrid{BaseURL: srv.URL, Key: "secret"}
+	return &AllDebrid{BaseURL: srv.URL, Key: "secret", sleep: func(context.Context, time.Duration) error { return nil }}
 }
 
 func TestAllDebridMatch(t *testing.T) {
@@ -129,5 +136,100 @@ func TestPickOrder(t *testing.T) {
 	}
 	if _, ok := Pick(srcs, "rien"); ok {
 		t.Error("aucune source attendue")
+	}
+}
+
+func delayedServer(t *testing.T, statuses ...int) *AllDebrid {
+	t.Helper()
+	polls := 0
+	return adServer(t, "", `{"status":"success","data":{"delayed":77}}`,
+		func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("late")) },
+		map[string]http.HandlerFunc{"/v4/link/delayed": func(w http.ResponseWriter, r *http.Request) {
+			_ = r.ParseForm()
+			if r.Method != http.MethodPost || r.PostForm.Get("id") != "77" {
+				t.Errorf("delayed : méthode %s, id %q", r.Method, r.PostForm.Get("id"))
+			}
+			st := statuses[min(polls, len(statuses)-1)]
+			polls++
+			link := ""
+			if st == 2 {
+				link = `,"link":"` + "http://" + r.Host + `/direct"`
+			}
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"status":%d%s}}`, st, link)
+		}})
+}
+
+func TestAllDebridDelayedUnlock(t *testing.T) {
+	a := delayedServer(t, 1, 2)
+	it, _ := a.Reopen(context.Background(), "https://1fichier.com/?abc", "")
+	body, ok, err := it.Open(context.Background(), 0)
+	if err != nil || !ok {
+		t.Fatalf("ok=%v err=%v", ok, err)
+	}
+	b, _ := io.ReadAll(body)
+	_ = body.Close()
+	if string(b) != "late" {
+		t.Errorf("body = %q", b)
+	}
+}
+
+func TestAllDebridDelayedFailed(t *testing.T) {
+	a := delayedServer(t, 1, 3)
+	it, _ := a.Reopen(context.Background(), "https://1fichier.com/?abc", "")
+	if _, _, err := it.Open(context.Background(), 0); err == nil || !strings.Contains(err.Error(), "AllDebrid : génération du lien échouée") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestAllDebridUnlockWithoutLink(t *testing.T) {
+	a := adServer(t, "", `{"status":"success","data":{}}`, nil)
+	it, _ := a.Reopen(context.Background(), "https://1fichier.com/?abc", "")
+	if _, _, err := it.Open(context.Background(), 0); err == nil || !strings.Contains(err.Error(), "aucun lien") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestAllDebridPremiumUntilForms(t *testing.T) {
+	for _, tc := range []struct {
+		raw  string
+		want time.Time
+	}{
+		{`"1545757200"`, time.Unix(1545757200, 0)},
+		{`1545757200`, time.Unix(1545757200, 0)},
+		{`0`, time.Time{}},
+		{`"0"`, time.Time{}},
+	} {
+		a := adServer(t, "", "", nil, map[string]http.HandlerFunc{"/v4/user": func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(`{"status":"success","data":{"user":{"isPremium":true,"premiumUntil":` + tc.raw + `}}}`))
+		}})
+		_, until, err := a.Account(context.Background())
+		if err != nil || !until.Equal(tc.want) {
+			t.Errorf("%s : until=%v err=%v", tc.raw, until, err)
+		}
+	}
+}
+
+func TestAllDebridStatusErrors(t *testing.T) {
+	for _, code := range []int{429, 503} {
+		a := adServer(t, "", "", nil, map[string]http.HandlerFunc{"/v4/user": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(code)
+			_, _ = w.Write([]byte(`{"status":"error","error":{"code":"X","message":"m"}}`))
+		}})
+		_, _, err := a.Account(context.Background())
+		var se *StatusError
+		if !errors.As(err, &se) || se.Code != code {
+			t.Errorf("%d : err = %v", code, err)
+		}
+	}
+}
+
+// requirePost signale tout appel non POST sur les routes qui exigent POST.
+func requirePost(t *testing.T, r *http.Request) {
+	t.Helper()
+	switch r.URL.Path {
+	case "/v4/link/infos", "/v4/link/unlock", "/v4/link/delayed":
+		if r.Method != http.MethodPost {
+			t.Errorf("%s doit être en POST, reçu %s", r.URL.Path, r.Method)
+		}
 	}
 }

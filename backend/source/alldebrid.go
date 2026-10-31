@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +19,7 @@ type AllDebrid struct {
 	BaseURL, Key string
 	HTTP         *http.Client
 	hosts        []string
+	sleep        func(context.Context, time.Duration) error // injectable pour les tests
 	mu           sync.RWMutex
 }
 
@@ -65,6 +67,9 @@ func (a *AllDebrid) call(ctx context.Context, method, endpoint string, form url.
 		return fmt.Errorf("AllDebrid : %w", stripURL(err))
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+		return &StatusError{Code: resp.StatusCode} // passager : la file retente
+	}
 	var env envelope
 	if err := json.NewDecoder(resp.Body).Decode(&env); err != nil {
 		if resp.StatusCode >= 400 {
@@ -145,13 +150,11 @@ func hostError(link string, e apiError) string {
 func (a *AllDebrid) item(link string) Item {
 	return Item{Online: true, Open: func(ctx context.Context, offset int64) (io.ReadCloser, bool, error) {
 		// Les liens débridés expirent : on débride au moment du téléchargement.
-		var data struct {
-			Link string `json:"link"`
-		}
-		if err := a.call(ctx, http.MethodGet, "/v4/link/unlock", url.Values{"link": {link}}, &data); err != nil {
+		direct, err := a.unlock(ctx, link)
+		if err != nil {
 			return nil, false, fmt.Errorf("%s : %w", hostLabel(link), err)
 		}
-		return openURL(ctx, a.client(), data.Link, offset)
+		return openURL(ctx, a.client(), direct, offset)
 	}}
 }
 
@@ -186,12 +189,82 @@ func (a *AllDebrid) Resolve(ctx context.Context, input string) ([]Item, error) {
 func (a *AllDebrid) Account(ctx context.Context) (bool, time.Time, error) {
 	var data struct {
 		User struct {
-			IsPremium    bool  `json:"isPremium"`
-			PremiumUntil int64 `json:"premiumUntil"`
+			IsPremium    bool     `json:"isPremium"`
+			PremiumUntil unixTime `json:"premiumUntil"`
 		} `json:"user"`
 	}
 	if err := a.call(ctx, http.MethodGet, "/v4/user", nil, &data); err != nil {
 		return false, time.Time{}, err
 	}
-	return data.User.IsPremium, time.Unix(data.User.PremiumUntil, 0), nil
+	return data.User.IsPremium, data.User.PremiumUntil.Time, nil
+}
+
+// delayedPoll est l'attente entre deux interrogations d'un lien en génération.
+const delayedPoll = 5 * time.Second
+
+func (a *AllDebrid) wait(ctx context.Context) error {
+	if a.sleep != nil {
+		return a.sleep(ctx, delayedPoll)
+	}
+	t := time.NewTimer(delayedPoll)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
+}
+
+// unlock débride link ; si AllDebrid diffère la génération, interroge link/delayed.
+func (a *AllDebrid) unlock(ctx context.Context, link string) (string, error) {
+	var data struct {
+		Link    string          `json:"link"`
+		Delayed json.RawMessage `json:"delayed"`
+	}
+	if err := a.call(ctx, http.MethodPost, "/v4/link/unlock", url.Values{"link": {link}}, &data); err != nil {
+		return "", err
+	}
+	if data.Link != "" {
+		return data.Link, nil
+	}
+	id := strings.Trim(string(data.Delayed), `" `)
+	if id == "" || id == "null" || id == "0" {
+		return "", errors.New("AllDebrid : aucun lien débridé dans la réponse")
+	}
+	for {
+		var d struct {
+			Status int    `json:"status"`
+			Link   string `json:"link"`
+		}
+		if err := a.call(ctx, http.MethodPost, "/v4/link/delayed", url.Values{"id": {id}}, &d); err != nil {
+			return "", err
+		}
+		switch d.Status {
+		case 2:
+			if d.Link == "" {
+				return "", errors.New("AllDebrid : aucun lien débridé dans la réponse")
+			}
+			return d.Link, nil
+		case 3:
+			return "", errors.New("AllDebrid : génération du lien échouée")
+		}
+		if err := a.wait(ctx); err != nil {
+			return "", err
+		}
+	}
+}
+
+// unixTime décode un timestamp Unix donné en entier ou en chaîne ; 0 donne le temps zéro.
+type unixTime struct{ time.Time }
+
+func (u *unixTime) UnmarshalJSON(b []byte) error {
+	n, err := strconv.ParseInt(strings.Trim(string(b), `" `), 10, 64)
+	if err != nil {
+		return fmt.Errorf("date d'abonnement illisible : %w", err)
+	}
+	if n != 0 {
+		u.Time = time.Unix(n, 0)
+	}
+	return nil
 }
