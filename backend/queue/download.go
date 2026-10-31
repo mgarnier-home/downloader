@@ -67,7 +67,7 @@ func (m *Manager) attempts(ctx context.Context, f store.File, t *transfer) error
 	for i := 0; ; i++ {
 		err := m.fetch(ctx, f, part, t)
 		if err == nil {
-			return m.finish(f, part)
+			return m.finish(ctx, f, part, t)
 		}
 		if ctx.Err() != nil || !transient(err) || i >= len(m.Delays) {
 			return err
@@ -193,7 +193,22 @@ func (w progressWriter) Write(p []byte) (int, error) {
 }
 
 // finish appelle Finish sur le .part puis le range à sa destination. En cas d'échec le .part reste.
-func (m *Manager) finish(f store.File, part string) error {
+// Un pack est rangé par Finish lui-même ; son .part n'est supprimé qu'en cas de succès.
+func (m *Manager) finish(ctx context.Context, f store.File, part string, t *transfer) error {
+	progress := func(done, total int64) {
+		m.mu.Lock()
+		t.phase, t.bytes, t.total = "extraction", done, total
+		m.mu.Unlock()
+	}
+	if naming.IsPack(f.OriginalName) {
+		if m.Finish == nil {
+			return errors.New("pack sans finalisation")
+		}
+		if err := m.Finish(ctx, f, part, progress); err != nil {
+			return err // message déjà lisible, affiché tel quel
+		}
+		return os.Remove(part)
+	}
 	dest, err := naming.Within(m.MediaDir, f.Dest)
 	if err != nil {
 		return err
@@ -202,7 +217,7 @@ func (m *Manager) finish(f store.File, part string) error {
 		return errors.New("Destination déjà présente") //nolint:staticcheck // message affiché tel quel
 	}
 	if m.Finish != nil {
-		if err := m.Finish(f, part); err != nil {
+		if err := m.Finish(ctx, f, part, progress); err != nil {
 			return fmt.Errorf("finalisation : %w", err)
 		}
 	}

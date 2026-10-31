@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -43,7 +44,7 @@ func (fz *finisher) addFile(t *testing.T, j store.Job, f store.File) store.File 
 func TestFinishVideoIndexes(t *testing.T) {
 	fz := newFinisher(t)
 	f := fz.addFile(t, store.Job{Kind: naming.Series, Ref: "tmdb:76479"}, store.File{Dest: "series/the boys/S01/the boys.S01.E01.mkv"})
-	if err := fz.finish(f, "inutile"); err != nil {
+	if err := fz.finish(context.Background(), f, "inutile", nil); err != nil {
 		t.Fatal(err)
 	}
 	if n, ok := fz.index.Lookup(naming.Series, 76479); !ok || n != "the boys" {
@@ -65,7 +66,7 @@ func TestFinishMusicTagsAndCover(t *testing.T) {
 	if err := os.WriteFile(part, []byte("\xff\xfb"+strings.Repeat("audio", 100)), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := fz.finish(f, part); err != nil {
+	if err := fz.finish(context.Background(), f, part, nil); err != nil {
 		t.Fatal(err)
 	}
 	if b, err := os.ReadFile(filepath.Join(fz.mediaDir, "musics/Gojira/Fortitude/cover.jpg")); err != nil || string(b) != "jpeg-1200" {
@@ -75,7 +76,7 @@ func TestFinishMusicTagsAndCover(t *testing.T) {
 	m.Info.Disc, m.Info.DiskCount, m.Info.Album = 2, 2, "Magma"
 	meta, _ = json.Marshal(m)
 	f2 := fz.addFile(t, store.Job{Kind: naming.Music}, store.File{Dest: naming.MusicPath(m.Info), Meta: string(meta)})
-	if err := fz.finish(f2, part); err != nil {
+	if err := fz.finish(context.Background(), f2, part, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(fz.mediaDir, "musics/Gojira/Magma/cover.jpg")); err != nil {
@@ -101,7 +102,7 @@ func TestFinishCoverErrorHidesURL(t *testing.T) {
 	cdn.Close()
 	meta, _ := json.Marshal(deezer.TrackMeta{SongID: "1", CoverURL: cdn.URL + "/{size}", Info: naming.TrackInfo{AlbumArtist: "A", Album: "B"}})
 	f := fz.addFile(t, store.Job{Kind: naming.Music}, store.File{Dest: "musics/A/B/x.mp3", Meta: string(meta)})
-	err := fz.finish(f, filepath.Join(t.TempDir(), "absent.part"))
+	err := fz.finish(context.Background(), f, filepath.Join(t.TempDir(), "absent.part"), nil)
 	if err == nil || strings.Contains(err.Error(), "http") {
 		t.Errorf("erreur : %v", err)
 	}

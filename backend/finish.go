@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,7 +33,7 @@ var kindDirs = map[naming.Kind]string{naming.Series: "series", naming.Movie: "fi
 
 const maxCover = 20 << 20
 
-func (fz *finisher) finish(f store.File, part string) error {
+func (fz *finisher) finish(_ context.Context, f store.File, part string, _ func(done, total int64)) error {
 	jobs, err := fz.store.Jobs([]int64{f.JobID})
 	if err != nil {
 		return err

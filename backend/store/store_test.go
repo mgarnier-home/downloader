@@ -155,3 +155,18 @@ func TestInputTaken(t *testing.T) {
 		}
 	}
 }
+
+func TestSetMeta(t *testing.T) {
+	s := openTemp(t)
+	f := newJob(t, s, "series/A")[0]
+	if err := s.SetMeta(f.ID, `{"pack":{"placed":2}}`); err != nil {
+		t.Fatal(err)
+	}
+	files, err := s.Files()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if files[0].Meta != `{"pack":{"placed":2}}` {
+		t.Fatalf("meta = %q", files[0].Meta)
+	}
+}
