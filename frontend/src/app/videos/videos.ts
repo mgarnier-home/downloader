@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { ApiService } from '../api/api.service';
 import { Kind, TMDBResult } from '../api/models';
 import { apiError, formatBytes, KIND_CLASS, KIND_LABEL } from '../format';
-import { applyCard, EditableRow, recompose, toEditable, toRequests, workName } from './rows';
+import { applyCard, EditableRow, recompose, toEditable, toRequests, withDest, workName } from './rows';
 
 interface Picker { key: string; q: string; tv: boolean; results: TMDBResult[]; busy: boolean; error: string }
 interface Group { key: string; title: string; idx: number[]; visible: number[]; hidden: number }
@@ -84,7 +84,7 @@ export class VideosPage {
   protected retype(i: number, change: Partial<EditableRow>) {
     const r = { ...this.rows()[i], ...change };
     const dest = r.kind === '' ? r.dest : recompose(r);
-    this.patch(i, { ...change, dest, checked: r.checked || (r.online && !r.exists && !r.dest && dest !== '') });
+    this.patch(i, { ...change, ...withDest(r, dest), checked: r.checked || (r.online && !r.exists && !r.dest && dest !== '') });
   }
 
   protected setKind(i: number, v: string) { this.retype(i, { kind: v as Kind }); }
@@ -98,7 +98,7 @@ export class VideosPage {
     if (this.editing() !== i) return; // Échap a déjà fermé l'éditeur : le blur ne sauvegarde pas
     this.editing.set(-1);
     const r = this.rows()[i];
-    this.patch(i, { dest: dest.trim(), destEdited: true, checked: r.checked || (r.online && !r.exists && !r.dest && dest.trim() !== '') });
+    this.patch(i, { ...withDest(r, dest.trim()), destEdited: true, checked: r.checked || (r.online && !r.exists && !r.dest && dest.trim() !== '') });
   }
 
   protected toggle(key: string) {

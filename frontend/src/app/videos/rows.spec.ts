@@ -1,5 +1,5 @@
 import { AnalyzeRow, TMDBResult } from '../api/models';
-import { applyCard, EditableRow, pascalCase, recompose, toEditable, toRequests } from './rows';
+import { applyCard, EditableRow, pascalCase, recompose, toEditable, toRequests, withDest } from './rows';
 
 const boys: TMDBResult = { id: 76479, title: 'The Boys', year: 2019, animation: false, poster: '', tv: true };
 const dunkirk: TMDBResult = { id: 374720, title: 'Dunkerque', year: 2017, animation: false, poster: '', tv: false };
@@ -79,5 +79,22 @@ describe('applyCard', () => {
     const r = row({ kind: 'movie', dest: 'films/S/S.mkv' });
     const out = applyCard(r, { ...dunkirk, title: 'Spirit', animation: true });
     expect([out.kind, out.dest]).toEqual(['anime', 'animes/Spirit/Spirit.mkv']);
+  });
+});
+
+describe('withDest', () => {
+  const flagged = () => ({ ...row({ exists: true, dest: 'films/Y/Y.mkv' }), checked: true });
+
+  it('oublie « déjà présent » quand la destination change : pas d’écrasement non signalé', () => {
+    const r = { ...flagged(), ...withDest(flagged(), 'films/Z/Z.mkv') };
+    expect(r.exists).toBe(false);
+    expect(toRequests([r])[0].files[0]).toMatchObject({ dest: 'films/Z/Z.mkv', overwrite: false });
+  });
+  it('garde « déjà présent » pour la même destination', () => {
+    expect(withDest(flagged(), 'films/Y/Y.mkv')).toEqual({ dest: 'films/Y/Y.mkv', exists: true });
+  });
+  it('applyCard oublie « déjà présent » si la destination change, pas si elle est saisie à la main', () => {
+    expect(applyCard(flagged(), dunkirk)).toMatchObject({ dest: 'films/Dunkerque/Dunkerque.mkv', exists: false });
+    expect(applyCard({ ...flagged(), destEdited: true }, dunkirk).exists).toBe(true);
   });
 });

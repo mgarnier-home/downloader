@@ -56,11 +56,16 @@ export function toRequests(rows: EditableRow[]): EnqueueRequest[] {
   return [...groups.values()];
 }
 
+/** Nouvelle destination : « déjà présent » ne valait que pour celle analysée par le serveur. */
+export function withDest(r: EditableRow, dest: string): Pick<EditableRow, 'dest' | 'exists'> {
+  return { dest, exists: r.exists && dest === r.dest };
+}
+
 /** Applique une fiche TMDB : la destination suit le titre, sauf si elle a été saisie à la main. */
 export function applyCard(r: EditableRow, card: TMDBResult): EditableRow {
   const next: EditableRow = { ...r, tmdb: card, message: '' };
   if (r.destEdited) return next;
   if (card.animation && !card.tv) next.kind = 'anime';
-  if (r.kind !== '' || next.kind !== '') next.dest = recompose(next, pascalCase(card.title));
+  if (r.kind !== '' || next.kind !== '') Object.assign(next, withDest(r, recompose(next, pascalCase(card.title))));
   return next;
 }
