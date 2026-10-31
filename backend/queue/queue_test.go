@@ -462,3 +462,35 @@ func TestSpeed(t *testing.T) {
 		t.Fatalf("débit %v après 18 s sans données, attendu 0", s)
 	}
 }
+
+func TestDiskErrorNotRetried(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(serveContent))
+	t.Cleanup(srv.Close)
+	e := newEnv(t)
+	// download/ est un fichier ordinaire : la création du .part échoue (erreur disque).
+	if err := os.WriteFile(filepath.Join(e.m.MediaDir, "download"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	e.run()
+	f := e.add(naming.Movie, srv.URL+"/a.mkv", "films/A/A.mkv", false)
+	if got := e.waitState(f.ID, store.StateError); got.Attempts != 0 {
+		t.Fatalf("tentatives : %d, attendu 0", got.Attempts)
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if len(e.delays) != 0 {
+		t.Fatalf("nouvelles tentatives sur erreur disque : %v", e.delays)
+	}
+}
+
+func TestSpeedSamplesBounded(t *testing.T) {
+	t0 := time.Now()
+	tr := &transfer{}
+	tr.reset(0, 0, t0)
+	for i := range 10000 { // 1000 s, un point toutes les 100 ms, sans lecture du débit
+		tr.add(10, t0.Add(time.Duration(i)*100*time.Millisecond))
+	}
+	if n := len(tr.samples); n > 60 {
+		t.Fatalf("%d points gardés, attendu au plus 60 (fenêtre de 5 s)", n)
+	}
+}

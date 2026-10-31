@@ -69,13 +69,19 @@ func (t *transfer) add(n int, now time.Time) {
 	if len(t.samples) == 0 || now.Sub(t.samples[len(t.samples)-1].at) >= 100*time.Millisecond {
 		t.samples = append(t.samples, sample{now, t.bytes})
 	}
+	t.prune(now)
+}
+
+// prune retire les points de plus de 5 s.
+func (t *transfer) prune(now time.Time) {
+	for len(t.samples) > 0 && now.Sub(t.samples[0].at) > speedWindow {
+		t.samples = t.samples[1:]
+	}
 }
 
 // speed renvoie le débit moyen depuis le plus ancien point de moins de 5 s.
 func (t *transfer) speed(now time.Time) float64 {
-	for len(t.samples) > 0 && now.Sub(t.samples[0].at) > speedWindow {
-		t.samples = t.samples[1:]
-	}
+	t.prune(now)
 	if len(t.samples) == 0 {
 		return 0
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"os"
@@ -100,6 +101,10 @@ func transient(err error) bool {
 	var se *source.StatusError
 	if errors.As(err, &se) {
 		return se.Code == http.StatusTooManyRequests || se.Code >= 500
+	}
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return false // erreur disque locale : syscall.Errno passerait pour une net.Error
 	}
 	var ne net.Error
 	return errors.As(err, &ne) || errors.Is(err, io.ErrUnexpectedEOF)
