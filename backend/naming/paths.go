@@ -44,7 +44,14 @@ func PascalCase(title string) string {
 var unsafeChars = strings.NewReplacer("/", "_", `\`, "_", ":", "_", "*", "_", "?", "_", `"`, "_", "<", "_", ">", "_", "|", "_")
 
 // SafeName remplace les caractères interdits dans un nom de fichier et retire les espaces de bord.
-func SafeName(s string) string { return strings.TrimSpace(unsafeChars.Replace(s)) }
+// Un résultat vide, "." ou ".." devient "_" pour ne pas sortir de son dossier.
+func SafeName(s string) string {
+	s = strings.TrimSpace(unsafeChars.Replace(s))
+	if s == "" || s == "." || s == ".." {
+		return "_"
+	}
+	return s
+}
 
 // VideoPath renvoie le chemin relatif d'une vidéo (épisode de série, film ou animé).
 func VideoPath(kind Kind, name string, season, episode int, ext string) string {
@@ -60,7 +67,7 @@ func VideoPath(kind Kind, name string, season, episode int, ext string) string {
 
 // BonusPath renvoie le chemin relatif d'un bonus de série, en gardant son nom d'origine.
 func BonusPath(name string, season int, original string) string {
-	return fmt.Sprintf("series/%s/S%02d/Bonus/%s", name, season, original)
+	return fmt.Sprintf("series/%s/S%02d/Bonus/%s", name, season, SafeName(original))
 }
 
 // TrackInfo décrit un morceau à ranger.
@@ -85,7 +92,7 @@ func Within(root, rel string) (string, error) {
 		return "", errors.New("chemin relatif attendu")
 	}
 	abs := filepath.Join(root, rel)
-	if r, err := filepath.Rel(root, abs); err != nil || r == ".." || strings.HasPrefix(r, ".."+string(filepath.Separator)) {
+	if r, err := filepath.Rel(root, abs); err != nil || r == "." || r == ".." || strings.HasPrefix(r, ".."+string(filepath.Separator)) {
 		return "", errors.New("chemin hors de la médiathèque")
 	}
 	return abs, nil

@@ -51,3 +51,11 @@ func TestBuildIndexEmptyDir(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestBuildIndexReadDirError(t *testing.T) {
+	root := t.TempDir()
+	writeNfo(t, root, "series", "pas un dossier")
+	if _, err := BuildIndex(root); err == nil {
+		t.Fatal("une erreur de lecture autre que l'absence doit être renvoyée")
+	}
+}

@@ -48,9 +48,33 @@ func TestWithin(t *testing.T) {
 	if got, err := Within("/media", "films/A/A.mkv"); err != nil || got != "/media/films/A/A.mkv" {
 		t.Errorf("obtenu %q, %v", got, err)
 	}
-	for _, rel := range []string{"../etc/passwd", "films/../../etc", "/etc/passwd", ""} {
+	if got, err := Within("/media", "a/../b"); err != nil || got != "/media/b" {
+		t.Errorf("a/../b : %q, %v", got, err)
+	}
+	if got, err := Within("/media", "..foo"); err != nil || got != "/media/..foo" {
+		t.Errorf("..foo : %q, %v", got, err)
+	}
+	for _, rel := range []string{"../etc/passwd", "films/../../etc", "/etc/passwd", "", ".", "..", "a/.."} {
 		if got, err := Within("/media", rel); err == nil {
 			t.Errorf("Within(%q) devrait échouer, obtenu %q", rel, got)
 		}
+	}
+}
+
+func TestSafeNameHardening(t *testing.T) {
+	for _, in := range []string{"", " ", ".", ".."} {
+		if got := SafeName(in); got != "_" {
+			t.Errorf("SafeName(%q) = %q, attendu _", in, got)
+		}
+	}
+	tr := TrackInfo{AlbumArtist: "..", Artist: "A", Album: "", Title: "T", Track: 1, Disc: 1, DiskCount: 1}
+	if got, want := MusicPath(tr), "musics/_/_/A -  - 01 - T.mp3"; got != want {
+		t.Errorf("obtenu %q, attendu %q", got, want)
+	}
+}
+
+func TestBonusPathSafe(t *testing.T) {
+	if got, want := BonusPath("Arcane", 2, "a/b.mkv"), "series/Arcane/S02/Bonus/a_b.mkv"; got != want {
+		t.Errorf("obtenu %q, attendu %q", got, want)
 	}
 }

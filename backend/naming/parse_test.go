@@ -13,6 +13,7 @@ func TestParseFilename(t *testing.T) {
 		{"breaking_bad_3x07_720p.avi", Parsed{Title: "breaking bad", Season: 3, Episode: 7, HasEpisode: true, Ext: ".avi"}},
 		{"Arcane.S02.Bonus.Making.Of.MULTi.mkv", Parsed{Title: "Arcane", Season: 2, Ext: ".mkv"}},
 		{"Spirit.Untamed.2021.MULTi.1080p.WEB.mkv", Parsed{Title: "Spirit Untamed", Year: 2021, Ext: ".mkv"}},
+		{"French.Kiss.1995.MULTi.1080p.mkv", Parsed{Title: "French Kiss", Year: 1995, Ext: ".mkv"}},
 		{"1917.2019.MULTi.2160p.mkv", Parsed{Title: "1917", Year: 2019, Ext: ".mkv"}},
 	}
 	for _, c := range cases {

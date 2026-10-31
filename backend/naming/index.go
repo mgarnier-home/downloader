@@ -2,7 +2,9 @@ package naming
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
@@ -34,20 +36,33 @@ func BuildIndex(mediaDir string) (*Index, error) {
 		{Anime, "animes", func(n string) []string { return []string{"movie.nfo", n + ".nfo"} }},
 	}
 	for _, l := range layout {
-		entries, _ := os.ReadDir(filepath.Join(mediaDir, l.dir)) // dossier absent : rien à indexer
-		for _, e := range entries {
-			if !e.IsDir() {
-				continue
-			}
-			for _, f := range l.files(e.Name()) {
-				if id := readTmdbID(filepath.Join(mediaDir, l.dir, e.Name(), f)); id != 0 {
-					ix.Add(l.kind, id, e.Name())
-					break
-				}
-			}
+		if err := ix.scanDir(mediaDir, l.kind, l.dir, l.files); err != nil {
+			return nil, err
 		}
 	}
 	return ix, nil
+}
+
+func (ix *Index) scanDir(mediaDir string, kind Kind, dir string, files func(string) []string) error {
+	entries, err := os.ReadDir(filepath.Join(mediaDir, dir))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil // dossier absent : rien à indexer
+	}
+	if err != nil {
+		return fmt.Errorf("lecture de %s : %w", dir, err)
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		for _, f := range files(e.Name()) {
+			if id := readTmdbID(filepath.Join(mediaDir, dir, e.Name(), f)); id != 0 {
+				ix.Add(kind, id, e.Name())
+				break
+			}
+		}
+	}
+	return nil
 }
 
 func readTmdbID(path string) int {

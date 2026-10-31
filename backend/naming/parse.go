@@ -49,7 +49,7 @@ func scanTokens(base string) (year, yearAt, tagAt int) {
 		if y := atoi(tok); n > 0 && reYear.MatchString(tok) && y >= 1900 && y <= maxYear {
 			year, yearAt = y, start
 		}
-		if tagAt < 0 && releaseTags[strings.ToLower(tok)] {
+		if n > 0 && tagAt < 0 && releaseTags[strings.ToLower(tok)] {
 			tagAt = start
 		}
 		start = end + 1
