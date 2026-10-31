@@ -76,12 +76,12 @@ type TrackInfo struct {
 	Track, Disc, DiskCount            int
 }
 
-// MusicPath renvoie le chemin relatif d'un morceau (extension .mp3).
 // AlbumDir est le dossier d'un album : son existence le marque « déjà présent », cover.jpg y est rangé.
 func AlbumDir(albumArtist, album string) string {
 	return path.Join("musics", SafeName(albumArtist), SafeName(album))
 }
 
+// MusicPath renvoie le chemin relatif d'un morceau (extension .mp3).
 func MusicPath(t TrackInfo) string {
 	parts := []string{AlbumDir(t.AlbumArtist, t.Album)}
 	if t.DiskCount > 1 {

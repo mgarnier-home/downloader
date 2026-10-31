@@ -181,6 +181,29 @@ func TestAllDebridDelayedFailed(t *testing.T) {
 	}
 }
 
+func TestAllDebridDelayedUnknownStatus(t *testing.T) {
+	for _, st := range []int{0, 4} {
+		a := delayedServer(t, 1, st)
+		it, _ := a.Reopen(context.Background(), "https://1fichier.com/?abc", "")
+		if _, _, err := it.Open(context.Background(), 0); err == nil || !strings.Contains(err.Error(), "AllDebrid : génération du lien échouée") {
+			t.Errorf("statut %d : err = %v", st, err)
+		}
+	}
+}
+
+func TestAllDebridDelayedTimeout(t *testing.T) {
+	a := delayedServer(t, 1)
+	var waited time.Duration
+	a.sleep = func(_ context.Context, d time.Duration) error { waited += d; return nil }
+	it, _ := a.Reopen(context.Background(), "https://1fichier.com/?abc", "")
+	if _, _, err := it.Open(context.Background(), 0); err == nil || !strings.Contains(err.Error(), "AllDebrid : génération du lien trop longue") {
+		t.Errorf("err = %v", err)
+	}
+	if waited != 10*time.Minute {
+		t.Errorf("attente totale = %s", waited)
+	}
+}
+
 func TestAllDebridUnlockWithoutLink(t *testing.T) {
 	a := adServer(t, "", `{"status":"success","data":{}}`, nil)
 	it, _ := a.Reopen(context.Background(), "https://1fichier.com/?abc", "")

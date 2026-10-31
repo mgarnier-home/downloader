@@ -49,3 +49,4 @@ jobs:
       - run: npx ng lint
       - run: npx ng build
       - run: npx ng test --watch=false
+      - run: TZ=UTC npx ng test --watch=false

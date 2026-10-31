@@ -199,8 +199,12 @@ func (a *AllDebrid) Account(ctx context.Context) (bool, time.Time, error) {
 	return data.User.IsPremium, data.User.PremiumUntil.Time, nil
 }
 
-// delayedPoll est l'attente entre deux interrogations d'un lien en génération.
-const delayedPoll = 5 * time.Second
+// delayedPoll est l'attente entre deux interrogations d'un lien en génération, delayedMax le total
+// des attentes au-delà duquel on abandonne.
+const (
+	delayedPoll = 5 * time.Second
+	delayedMax  = 10 * time.Minute
+)
 
 func (a *AllDebrid) wait(ctx context.Context) error {
 	if a.sleep != nil {
@@ -232,7 +236,7 @@ func (a *AllDebrid) unlock(ctx context.Context, link string) (string, error) {
 	if id == "" || id == "null" || id == "0" {
 		return "", errors.New("AllDebrid : aucun lien débridé dans la réponse")
 	}
-	for {
+	for waited := time.Duration(0); ; waited += delayedPoll {
 		var d struct {
 			Status int    `json:"status"`
 			Link   string `json:"link"`
@@ -240,14 +244,16 @@ func (a *AllDebrid) unlock(ctx context.Context, link string) (string, error) {
 		if err := a.call(ctx, http.MethodPost, "/v4/link/delayed", url.Values{"id": {id}}, &d); err != nil {
 			return "", err
 		}
-		switch d.Status {
-		case 2:
+		switch {
+		case d.Status == 2:
 			if d.Link == "" {
 				return "", errors.New("AllDebrid : aucun lien débridé dans la réponse")
 			}
 			return d.Link, nil
-		case 3:
+		case d.Status != 1: // 1 : en cours ; tout autre statut est un échec
 			return "", errors.New("AllDebrid : génération du lien échouée")
+		case waited >= delayedMax:
+			return "", errors.New("AllDebrid : génération du lien trop longue")
 		}
 		if err := a.wait(ctx); err != nil {
 			return "", err
