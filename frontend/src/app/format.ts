@@ -25,3 +25,7 @@ export function formatEta(bytesLeft: number, bps: number): string {
 // Libellé et classe CSS de la pastille de type (série, film, animé, musique).
 export const KIND_LABEL: Record<string, string> = { series: 'Série', movie: 'Film', anime: 'Animé', music: 'Album' };
 export const KIND_CLASS: Record<string, string> = { series: 'serie', movie: 'film', anime: 'anime', music: 'musique' };
+
+/** Message `{"error": …}` renvoyé par le backend, ou le texte de secours. */
+export const apiError = (e: unknown, fallback: string): string =>
+  (e as { error?: { error?: string } })?.error?.error ?? fallback;

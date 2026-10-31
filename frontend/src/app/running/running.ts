@@ -2,7 +2,7 @@ import { DestroyRef, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../api/api.service';
 import { JobView, Kind, QueueFile } from '../api/models';
-import { formatBytes, formatEta, formatSpeed, KIND_CLASS, KIND_LABEL } from '../format';
+import { apiError, formatBytes, formatEta, formatSpeed, KIND_CLASS, KIND_LABEL } from '../format';
 import { commonPath, doneToday, episodeCells, filePercent, jobPercent, summarize } from './group';
 
 const FILTERS: { label: string; kind: Kind | '' }[] = [
@@ -97,7 +97,7 @@ export class RunningPage {
       await action();
       this.replacing.set(null);
     } catch (e) {
-      this.message.set((e as { error?: { error?: string } }).error?.error ?? "L'action a échoué.");
+      this.message.set(apiError(e, "L'action a échoué."));
     }
     this.queue.reload();
     this.history.reload();
