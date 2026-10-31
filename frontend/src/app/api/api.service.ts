@@ -14,7 +14,12 @@ export class ApiService {
   constructor() {
     // La file bouge sans cesse : relue toutes les 2 s tant que l'appli est ouverte.
     const timer = setInterval(() => this.queueRes.reload(), 2000);
-    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+    // Les pastilles d'état : toutes les 10 minutes.
+    const statusTimer = setInterval(() => this.statusRes.reload(), 600_000);
+    inject(DestroyRef).onDestroy(() => {
+      clearInterval(timer);
+      clearInterval(statusTimer);
+    });
   }
 
   status() { return this.statusRes; }

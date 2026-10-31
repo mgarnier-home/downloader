@@ -9,6 +9,7 @@
 .chips{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:12.5px;color:var(--muted);white-space:nowrap;max-width:100%}
 .detail{overflow:hidden;text-overflow:ellipsis;max-width:22ch;color:var(--text)}
+.short{display:none;color:var(--text)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
 .dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)} .dot.info{background:var(--info)}
 main{padding:20px}
@@ -18,6 +19,7 @@ main{padding:20px}
   .chips{gap:6px}
   .chip{padding:3px 8px;font-size:11.5px}
   .detail{display:none}
+  .short{display:inline}
   main{padding:14px 12px 84px}
   .tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:var(--panel);border-top:1px solid var(--line)}
   .tabs a{text-align:center;padding:12px 4px 16px;border-radius:0;font-size:13px;position:relative}

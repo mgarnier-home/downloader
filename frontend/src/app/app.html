@@ -13,10 +13,10 @@
   </nav>
   <div class="chips">
     @if (alldebrid(); as a) {
-      <span class="chip" [title]="'AllDebrid : ' + a.text"><span class="dot {{ a.cls }}"></span>AllDebrid<span class="detail">{{ a.text }}</span></span>
+      <span class="chip" [title]="'AllDebrid : ' + a.text"><span class="dot {{ a.cls }}"></span>AllDebrid<span class="short">{{ a.short }}</span><span class="detail">{{ a.text }}</span></span>
     }
     @if (deezer(); as d) {
-      <span class="chip" [title]="'Deezer : ' + d.text"><span class="dot {{ d.cls }}"></span>Deezer@if (d.cls) {<span class="detail">{{ d.text }}</span>}</span>
+      <span class="chip" [title]="'Deezer : ' + d.text"><span class="dot {{ d.cls }}"></span>Deezer<span class="short">{{ d.short }}</span>@if (d.cls) {<span class="detail">{{ d.text }}</span>}</span>
     }
     @if (free(); as f) {
       <span class="chip"><span class="dot info"></span>{{ f }}</span>
