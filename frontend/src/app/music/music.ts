@@ -10,6 +10,12 @@ const FILTERS: { value: Filter; label: string }[] = [
 ];
 const LINK = /deezer\.com\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?(album|track)\/(\d+)/i;
 
+/** Lien Deezer collé : sa référence (« deezer:album:1 »), seule envoyée au serveur. */
+export function deezerLink(q: string): { type: string; ref: string } | null {
+  const m = LINK.exec(q);
+  return m ? { type: m[1].toLowerCase(), ref: `deezer:${m[1].toLowerCase()}:${m[2]}` } : null;
+}
+
 @Component({
   selector: 'app-music',
   templateUrl: './music.html',
@@ -30,10 +36,7 @@ export class MusicPage {
   protected readonly failed = signal<Record<string, string>>({});
 
   /** Lien Deezer collé : proposé directement, sans recherche. */
-  protected readonly link = computed(() => {
-    const m = LINK.exec(this.query());
-    return m ? { type: m[1].toLowerCase(), ref: `deezer:${m[1].toLowerCase()}:${m[2]}` } : null;
-  });
+  protected readonly link = computed(() => deezerLink(this.query()));
   protected readonly empty = computed(() => {
     const r = this.results();
     return r !== null && !r.artists.length && !r.albums.length && !r.tracks.length;
@@ -71,13 +74,13 @@ export class MusicPage {
     this.type(name);
   }
 
-  protected async add(ref: string, request = ref) {
+  protected async add(ref: string) {
     const set = (v: string) => this.added.update((a) => ({ ...a, [ref]: v }));
     if (this.added()[ref] === '…') return;
     this.failed.update((f) => ({ ...f, [ref]: '' }));
     set('…');
     try {
-      await this.api.enqueue({ kind: 'music', title: '', ref: '', files: [], deezer: request });
+      await this.api.enqueue({ kind: 'music', title: '', ref: '', files: [], deezer: ref });
       set('Ajouté');
     } catch (e) {
       const dup = (e as { status?: number }).status === 409;
