@@ -163,7 +163,7 @@ NFS), `busy_timeout=5000` et une seule connexion (`SetMaxOpenConns(1)`).
   sont gardés qu'en mémoire : à la reprise, la taille du fichier partiel suffit.
 - L'historique est la liste des fichiers `rangé` ou `erreur`, sans purge dans la v0.1.0.
 
-La base vit sur le partage NFSv4 des données du homelab, comme les autres données de conteneurs.
+La base peut vivre sur un partage NFSv4, avec les autres données de conteneurs.
 C'est acceptable parce qu'un seul processus, sur un seul hôte, y accède, et que NFSv4 gère les
 verrous `fcntl` utilisés par le journal classique. Deux instances ne doivent jamais ouvrir la même
 base. Si la base pose problème, le repli prévu est un disque local répliqué par Litestream, sans
@@ -256,7 +256,7 @@ remplace le fichier existant au moment du déplacement.
   elle sort de la racine de la médiathèque. Cela couvre aussi les tags Deezer qui contiendraient
   `..` ou `/`.
 - Les secrets ne sont jamais renvoyés par l'API ni écrits dans les logs.
-- Aucune authentification dans l'application : elle reste derrière le reverse proxy du homelab,
+- Aucune authentification dans l'application : elle reste derrière un reverse proxy,
   comme l'outil qu'elle remplace.
 
 ## Configuration

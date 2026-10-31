@@ -10,7 +10,8 @@ les range dans la médiathèque au format Jellyfin / Navidrome.
 `download/` puis déplace à leur destination, calculée par `naming`. L'état vit dans SQLite (`store`).
 
 **Tech Stack :** Go 1.26.4 (bibliothèque standard, `modernc.org/sqlite`, `golang.org/x/crypto/blowfish`,
-`github.com/bogem/id3v2/v2`, `github.com/mgarnier-home/utils` v1.4.0), Angular 22 (standalone,
+`github.com/bogem/id3v2/v2`, `github.com/mgarnier-home/utils` v1.4.0 : `config.GetConfig`,
+`logger`, `version.Handler`, `buildinfo`), Angular 22 (standalone,
 signals, `httpResource`), Node 24.16.0, golangci-lint 2.15.0, Task, Docker multi-étapes.
 
 **Spec :** `docs/superpowers/specs/2026-10-31-downloader-design.md`. Maquettes :
@@ -22,6 +23,10 @@ signals, `httpResource`), Node 24.16.0, golangci-lint 2.15.0, Task, Docker multi
   anglais. Commits au format Conventional Commits, sur `release/v0.1.0`.
 - Module Go : `github.com/mgarnier-home/downloader/backend`. Build `CGO_ENABLED=0`.
 - Aucune dépendance en dehors de celles listées dans « Tech Stack » sans accord du propriétaire.
+  Avant d'écrire un utilitaire générique, regarder s'il existe dans `github.com/mgarnier-home/utils`
+  (configuration, journalisation, `/version`, infos de build) et l'utiliser.
+- Les docs, commentaires et messages du dépôt ne citent aucun autre projet ni aucune infrastructure
+  particulière.
 - Le dépôt est public : aucun secret, aucune IP, aucun nom d'hôte interne dans le code, les tests ou
   la doc.
 - Variables : `DOWNLOADER_SERVER_PORT` (défaut `8080`), `DOWNLOADER_MEDIA_DIR` (défaut `/media`),
@@ -98,29 +103,54 @@ frontend/          Angular (src/app/api, shell, running, videos, music, history)
 - Test : `backend/config_test.go`
 
 **Interfaces :**
-- Produces : `type Config struct { Port, MediaDir, DataDir, AllDebridKey, DeezerARL, TMDBKey string }` ;
-  `func loadConfig(getenv func(string) string) (Config, error)` ; `func spaHandler(fsys fs.FS) http.Handler`
-  (sert le fichier demandé s'il existe, sinon `index.html`). `GET /version` via
-  `github.com/mgarnier-home/utils/version.Handler()`.
+- Produces :
+  ```go
+  type Config struct {
+      Port         string `key:"DOWNLOADER_SERVER_PORT" default-value:"8080"`
+      MediaDir     string `key:"DOWNLOADER_MEDIA_DIR" default-value:"/media"`
+      DataDir      string `key:"DOWNLOADER_DATA_DIR" default-value:"/data"`
+      AllDebridKey string `key:"DOWNLOADER_ALLDEBRID_API_KEY" required:"true"`
+      DeezerARL    string `key:"DOWNLOADER_DEEZER_ARL" required:"true"`
+      TMDBKey      string `key:"DOWNLOADER_TMDB_API_KEY" required:"true"`
+  }
+  func loadConfig() (Config, error) // utils config.GetConfig, erreurs jointes (errors.Join), puis contrôle du port 1–65535
+  func spaHandler(fsys fs.FS) http.Handler // sert le fichier demandé s'il existe, sinon index.html
+  ```
+  `GET /version` via `github.com/mgarnier-home/utils/version.Handler()`. Journalisation :
+  `logger.InitAppLogger("downloader")` puis `logger.Infof` / `Warnf` / `Errorf` de utils.
 
-Fichiers repris du dépôt `mgarnier-home/homepage` en remplaçant `homepage` par `downloader` :
-`.tool-versions`, `.gitignore`, `backend/.golangci.yml`, `backend/spa.go`, `.github/workflows/test.yml`
-(jobs Back : `go vet`, `go test -race`, golangci-lint v2.15.0 ; Front : `npm ci`, `ng lint`,
-`ng build`, plus `npx ng test --watch=false`). `taskfile.yml` : tâches `build:front`, `build:back`
-(sortie `bin/downloader`), `build`, et `env`, qui génère `.env` (droits 600) à partir de
-`/mnt/secrets/media/media.env` sans rien afficher.
+Contenu des fichiers de socle :
+- `.tool-versions` : `golang 1.26.4`, `nodejs 24.16.0`, `golangci-lint 2.15.0`.
+- `.gitignore` : `frontend/node_modules/`, `frontend/.angular/`, `frontend/dist/`,
+  `backend/web/browser/*` sauf `.gitkeep`, `/bin/`, `.env`, `*.db`.
+- `.env.example` : les six variables, secrets vides (`config.GetConfig` lit `.env` en local).
+- `backend/.golangci.yml` (format v2) : linters `funlen` (60 lignes, 40 instructions), `gocognit`
+  (15), `nestif` (4), `unparam` ; formateur `gofmt`.
+- `taskfile.yml` : `build:front` (`npm ci` si besoin, `npx ng build`, recopie de
+  `frontend/dist/downloader/browser/` dans `backend/web/browser/` en gardant `.gitkeep`),
+  `build:back` (`CGO_ENABLED=0 go build -o ../bin/downloader .`), `build` (les deux), `test`
+  (Définition de terminé).
+- `.github/workflows/test.yml` : sur PR vers `main` et push sur `main`, annulation des exécutions
+  obsolètes, `permissions: contents: read`. Job Back (`ubuntu-latest`, `actions/setup-go` avec
+  `go-version-file: backend/go.mod`) : `go vet ./...`, `go test -race ./...`,
+  `golangci/golangci-lint-action` en v2.15.0. Job Front (`actions/setup-node` avec
+  `node-version-file: .tool-versions`, cache npm) : `npm ci`, `npx ng lint`, `npx ng build`,
+  `npx ng test --watch=false`. Ce job n'a rien à faire tant que `frontend/` n'existe pas : il est
+  ajouté à la tâche 10.
 
 - [ ] **Step 1 : tests de configuration**
 
 ```go
+// variables posées avec t.Setenv
 func TestLoadConfigDefaults(t *testing.T)        // les 3 secrets fournis → Port "8080", MediaDir "/media", DataDir "/data"
 func TestLoadConfigMissingSecret(t *testing.T)   // DOWNLOADER_DEEZER_ARL vide → erreur contenant "DOWNLOADER_DEEZER_ARL"
 func TestLoadConfigBadPort(t *testing.T)         // DOWNLOADER_SERVER_PORT "70000" → erreur
 ```
 
 - [ ] **Step 2 :** `cd backend && go test ./...` → FAIL (`loadConfig` indéfini).
-- [ ] **Step 3 :** écrire `config.go`, `spa.go`, `main.go` (charge la config, `slog` pour les logs,
-  `http.NewServeMux`, `GET /version`, `/` → `spaHandler`, `ListenAndServe`).
+- [ ] **Step 3 :** écrire `config.go`, `spa.go`, `main.go` (charge la config, logger utils,
+  `http.NewServeMux`, `GET /version`, `/` → `spaHandler` sur `//go:embed all:web/browser`,
+  `ListenAndServe`).
 - [ ] **Step 4 :** `go test ./... && go vet ./... && golangci-lint run` → PASS.
 - [ ] **Step 5 :** commit `chore: socle backend et CI`.
 
@@ -578,7 +608,8 @@ standalone), `frontend/src/app/api/models.ts`, `frontend/src/app/api/api.service
 Le shell reprend la maquette : en-tête avec marque, onglets, pastilles AllDebrid (premium et date),
 Deezer, espace libre ; sous 700 px de large, onglets dans une barre fixe en bas de l'écran, compteur
 d'éléments actifs ou en erreur sur « En cours ». `angular.json` : `outputPath` qui produit
-`dist/downloader/browser`, recopié par `task build:front` dans `backend/web/browser/`.
+`dist/downloader/browser`, recopié par `task build:front` dans `backend/web/browser/`. Ajouter le
+job Front à `.github/workflows/test.yml` (voir tâche 1).
 
 - [ ] **Step 1 :** tests de `format.ts` : `formatBytes(4_800_000_000) == "4,8 Go"`,
   `formatBytes(950_000_000) == "950 Mo"`, `formatSpeed(86_000_000) == "86 Mo/s"`,
@@ -661,14 +692,25 @@ Erreurs ; sur mobile, une carte par ligne.
 
 **Files :** Create `Dockerfile`, `.github/workflows/publish.yml`
 
-`Dockerfile` : même structure que celui de homepage (étape Node 24 → `npx ng build`, étape Go 1.26 →
-build avec `-ldflags` qui injectent `buildinfo.Version`, `Commit`, `Date`, image finale
-`gcr.io/distroless/static`), binaire `/downloader`, `EXPOSE 8080`. `publish.yml` : sur tag `v*.*.*`,
-vérifie le format et l'appartenance à `main` (comme homepage), construit et pousse
-`mgarnier11/downloader:<version>` et `:latest` pour **amd64 seulement**, sur un runner `linux/amd64`.
+`Dockerfile` en trois étapes :
+1. `node:24` : `npm ci` sur `package.json` et `package-lock.json` copiés seuls (cache), puis copie de
+   `frontend/` et `npx ng build`.
+2. `golang:1.26` : `go mod download` sur `go.mod` et `go.sum` copiés seuls, copie de `backend/` et de
+   `dist/downloader/browser/` dans `web/browser/`, puis, après les `ARG VERSION=dev`, `COMMIT=none`,
+   `DATE=unknown` (pour ne pas invalider le cache des modules),
+   `CGO_ENABLED=0 go build -ldflags="-X 'github.com/mgarnier-home/utils/buildinfo.Version=${VERSION}' -X '…buildinfo.Commit=${COMMIT}' -X '…buildinfo.Date=${DATE}'" -o /downloader .`
+3. `gcr.io/distroless/static` : `/downloader`, `EXPOSE 8080`, `ENTRYPOINT ["/downloader"]`.
+
+`publish.yml` : sur push d'un tag `v*.*.*`, `concurrency` sans annulation, `permissions: contents: read`.
+Job « version » : checkout complet (`fetch-depth: 0`), tag lu par variable d'environnement (jamais
+interpolé dans le script), contrôle `^v[0-9]+\.[0-9]+\.[0-9]+$` et
+`git merge-base --is-ancestor "$GITHUB_SHA" origin/main`, sorties `version` (sans le `v`) et `date`
+(UTC ISO 8601). Job « image », sur un runner `linux/amd64` auto-hébergé (déjà authentifié auprès de
+Docker Hub) : `docker buildx build` avec les trois `--build-arg`, tags
+`mgarnier11/downloader:<version>` et `mgarnier11/downloader:latest`, `--push`. amd64 seulement.
 
 - [ ] **Step 1 :** `docker build -t downloader:test .` → succès.
-- [ ] **Step 2 :** lancer l'image avec un `.env` (`task env`), un dossier médias temporaire monté sur
+- [ ] **Step 2 :** lancer l'image avec un `.env` rempli par le propriétaire, un dossier médias temporaire monté sur
   `/media` et un dossier sur `/data` ; ajouter un lien HTTP de test et un titre Deezer ; vérifier
   qu'ils arrivent à leur destination, que `GET /version` répond, et qu'un redémarrage du conteneur
   conserve la file.
@@ -676,6 +718,4 @@ vérifie le format et l'appartenance à `main` (comme homepage), construit et po
 - [ ] **Step 4 :** Définition de terminé complète, push de `release/v0.1.0`, PR
   `v0.1.0 : première version` vers `main`, suivi de `gh pr checks --watch`.
 
-Hors de ce plan (étapes suivantes, à demander au propriétaire) : écrire les trois secrets dans
-`/mnt/secrets/media/media.env`, puis remplacer les services `downloader` et `jdownloader` dans le
-dépôt de déploiement.
+Hors de ce plan : les variables d'environnement et le déploiement, gérés par le propriétaire.
