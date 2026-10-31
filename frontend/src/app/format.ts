@@ -21,3 +21,7 @@ export function formatEta(bytesLeft: number, bps: number): string {
   if (min < 60) return `${min} min`;
   return `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`;
 }
+
+// Libellé et classe CSS de la pastille de type (série, film, animé, musique).
+export const KIND_LABEL: Record<string, string> = { series: 'Série', movie: 'Film', anime: 'Animé', music: 'Album' };
+export const KIND_CLASS: Record<string, string> = { series: 'serie', movie: 'film', anime: 'anime', music: 'musique' };

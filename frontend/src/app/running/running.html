@@ -1,0 +1,99 @@
+<div class="pane">
+  @if (queue.error() !== undefined) {
+    <p class="err-text" role="alert">La file est illisible pour le moment ; nouvelle tentative dans 2 s.</p>
+  }
+  @if (message()) { <p class="err-text" role="alert">{{ message() }}</p> }
+
+  <div class="toolbar">
+    @if (summary(); as s) {
+      <span class="chip num"><span class="dot acc"></span>{{ speedText() }}</span>
+      <span class="chip num">{{ s.active }} actifs · {{ s.pending }} en attente</span>
+      <span class="chip num">reste {{ formatBytes(s.bytesLeft) }}@if (eta()) { · ~{{ eta() }} }</span>
+      <span class="chip num" [class.bad]="s.errors > 0"><span class="dot" [class.bad]="s.errors > 0"></span>{{ s.errors }} {{ s.errors > 1 ? 'erreurs' : 'erreur' }}</span>
+    }
+    <span class="seg end" role="group" aria-label="Filtrer par type">
+      @for (f of filters; track f.label) {
+        <button type="button" [attr.aria-pressed]="kind() === f.kind" (click)="kind.set(f.kind)">{{ f.label }}</button>
+      }
+    </span>
+    <button type="button" class="btn small" (click)="togglePause()">{{ paused() ? 'Reprendre' : 'Tout mettre en pause' }}</button>
+  </div>
+  @if (paused()) { <p class="muted" role="status">La file est en pause.</p> }
+
+  @if (errors().length) {
+    <section class="card" aria-labelledby="h-err">
+      <div class="card-h"><h2 id="h-err">Erreurs</h2><span class="muted">à traiter</span></div>
+      @for (e of errors(); track e.file.id) {
+        <div class="qrow">
+          <div class="t">{{ e.job.title }} <span class="tag" [class]="'tag ' + kindClass[e.job.kind]">{{ kindLabel[e.job.kind] }}</span></div>
+          <div class="m">
+            <button type="button" class="btn small" (click)="retry(e.file)">Réessayer</button>
+            <button type="button" class="btn small" [attr.aria-expanded]="replacing() === e.file.id"
+                    (click)="replacing.set(replacing() === e.file.id ? null : e.file.id)">Remplacer le lien</button>
+            <button type="button" class="btn small ghost" (click)="remove(e.file)">Retirer</button>
+          </div>
+          <div class="s">
+            <span class="err-text">{{ e.file.error || 'Échec du téléchargement' }} · <span class="mono">{{ e.file.dest || e.file.name }}</span></span>
+            @if (replacing() === e.file.id) {
+              <form class="replace" (submit)="$event.preventDefault(); replace(e.file, link.value)">
+                <label class="sr-only" [for]="'lnk' + e.file.id">Nouveau lien</label>
+                <input #link class="field" [id]="'lnk' + e.file.id" type="url" placeholder="Nouveau lien" autocomplete="off">
+                <button class="btn small primary">Remplacer</button>
+              </form>
+            }
+          </div>
+        </div>
+      }
+    </section>
+  }
+
+  <section class="card" aria-labelledby="h-run">
+    <div class="card-h"><h2 id="h-run">En cours</h2><span class="muted">regroupés par œuvre ou album</span></div>
+    @if (queue.hasValue()) {
+      @for (j of running(); track j.id) {
+        <div class="qrow" [class.idle]="idle(j)">
+          <div class="t">{{ j.title }} <span [class]="'tag ' + kindClass[j.kind]">{{ kindLabel[j.kind] }}</span>
+            @if (j.files.length > 1 && j.kind !== 'music') {
+              <span class="muted num light">{{ count(j, 'done') }} / {{ j.files.length }} épisodes rangés</span>
+            }
+          </div>
+          <div class="m num">{{ meta(j) }}</div>
+          <div class="s">
+            <div class="bar" role="progressbar" [attr.aria-label]="'Progression de ' + j.title"
+                 aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="jobPercent(j)"><i [style.width.%]="jobPercent(j)"></i></div>
+            @if (j.files.length > 1 && j.kind !== 'music') {
+              <ul class="cells" [attr.aria-label]="'État des ' + j.files.length + ' épisodes'">
+                @for (c of episodeCells(j); track $index) {
+                  <li class="tag" [class]="'tag ' + c.state">{{ c.label }}@switch (c.state) {
+                    @case ('done') { ✓ } @case ('running') { {{ c.percent }} % } @case ('error') { ✗ }
+                  }</li>
+                }
+              </ul>
+            }
+            <span class="path">{{ commonPath(j.files.map(f => f.dest)) }}</span>
+          </div>
+        </div>
+      } @empty {
+        <p class="empty">Rien en cours. <a routerLink="/videos">Ajouter des vidéos</a> ou <a routerLink="/music">de la musique</a>.</p>
+      }
+    } @else if (queue.error() !== undefined) {
+      <p class="empty err-text">Impossible de lire la file.</p>
+    } @else {
+      <p class="empty">Chargement…</p>
+    }
+  </section>
+
+  <section class="card" aria-labelledby="h-done">
+    <div class="card-h"><h2 id="h-done" class="muted">Rangés aujourd'hui</h2><a class="btn small ghost end" routerLink="/history">Voir l'historique</a></div>
+    @for (d of done(); track $index) {
+      <div class="qrow">
+        <div class="t"><span class="dot"></span>{{ d.title }} <span [class]="'tag ' + kindClass[d.kind]">{{ kindLabel[d.kind] }}</span>
+          @if (d.count > 1) { <span class="muted light">{{ d.count }} fichiers</span> }</div>
+        <div class="m num">{{ d.at.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}</div>
+        <div class="s"><span class="path">{{ d.dest }}</span></div>
+      </div>
+    } @empty {
+      <p class="empty" [class.err-text]="historyFailed()">{{ historyFailed() ? "Impossible de lire l'historique." : "Rien n'a encore été rangé aujourd'hui." }}</p>
+    }
+  </section>
+</div>
