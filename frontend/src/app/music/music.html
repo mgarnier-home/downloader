@@ -18,7 +18,8 @@
       @if (link(); as l) {
         <div class="artist">
           <div><div class="strong">Lien Deezer reconnu</div><div class="muted small">{{ l.type === 'album' ? 'Album' : 'Titre' }} · {{ l.ref }}</div></div>
-          <button type="button" class="btn small primary end" [disabled]="!!added()[l.ref]" (click)="add(l.ref, query().trim())">{{ added()[l.ref] || 'Télécharger' }}</button>
+          <button type="button" class="btn small primary end" [disabled]="locked(l.ref)" (click)="add(l.ref, query().trim())">{{ added()[l.ref] || 'Télécharger' }}</button>
+          @if (failed()[l.ref]) { <span class="err-text" role="alert">{{ failed()[l.ref] }}</span> }
         </div>
       }
 
@@ -46,7 +47,8 @@
                 @if (a.present) {
                   <button type="button" class="btn small" disabled>Déjà présent</button>
                 } @else {
-                  <button type="button" class="btn small primary" [disabled]="added()[ref] === 'Ajouté'" (click)="add(ref)">{{ added()[ref] || 'Télécharger' }}</button>
+                  <button type="button" class="btn small primary" [disabled]="locked(ref)" (click)="add(ref)">{{ added()[ref] || 'Télécharger' }}</button>
+                  @if (failed()[ref]) { <span class="err-text" role="alert">{{ failed()[ref] }}</span> }
                 }
               </div>
             }
@@ -60,9 +62,10 @@
               <span>{{ t.title }} <span class="muted">· {{ t.artist }} · {{ t.album }}</span></span>
               <span class="muted num">{{ duration(t.duration) }}</span>
               @if (added()[ref]; as state) {
-                <span class="small" [class.err-text]="state !== 'Ajouté'">{{ state }}</span>
+                <span class="small">{{ state }}</span>
               } @else {
                 <button type="button" class="btn small" [attr.aria-label]="'Ajouter ' + t.title" (click)="add(ref)">+</button>
+                @if (failed()[ref]) { <span class="err-text small" role="alert">{{ failed()[ref] }}</span> }
               }
             </div>
           }

@@ -1,5 +1,5 @@
 import { AnalyzeRow, TMDBResult } from '../api/models';
-import { EditableRow, recompose, toEditable, toRequests } from './rows';
+import { applyCard, EditableRow, pascalCase, recompose, toEditable, toRequests } from './rows';
 
 const boys: TMDBResult = { id: 76479, title: 'The Boys', year: 2019, animation: false, poster: '', tv: true };
 const dunkirk: TMDBResult = { id: 374720, title: 'Dunkerque', year: 2017, animation: false, poster: '', tv: false };
@@ -55,5 +55,29 @@ describe('recompose', () => {
     expect(recompose({ ...r, kind: 'movie' })).toBe('films/TheBoys/TheBoys.mkv');
     expect(recompose({ ...r, kind: 'anime' })).toBe('animes/TheBoys/TheBoys.mkv');
     expect(recompose({ ...r, bonus: true })).toBe('series/TheBoys/S02/Bonus/The.Boys.S02E03.MULTi.mkv');
+  });
+});
+
+describe('pascalCase', () => {
+  it('suit la règle du serveur', () => {
+    expect(pascalCase("Spirit : l'indomptable")).toBe('SpiritLIndomptable');
+    expect(pascalCase('Dune : Première partie')).toBe('DunePremierePartie');
+    expect(pascalCase('Cœur')).toBe('Coeur');
+  });
+});
+
+describe('applyCard', () => {
+  it('recalcule la destination avec le titre de la fiche', () => {
+    const r = row({ kind: 'movie', dest: 'films/Dunkirk/Dunkirk.mkv', name: 'Dunkirk.mkv' });
+    expect(applyCard(r, dunkirk).dest).toBe('films/Dunkerque/Dunkerque.mkv');
+  });
+  it('garde une destination saisie à la main', () => {
+    const r = { ...row({ dest: 'films/Mien/Mien.mkv' }), destEdited: true };
+    expect(applyCard(r, dunkirk).dest).toBe('films/Mien/Mien.mkv');
+  });
+  it('passe en animé pour un film d’animation', () => {
+    const r = row({ kind: 'movie', dest: 'films/S/S.mkv' });
+    const out = applyCard(r, { ...dunkirk, title: 'Spirit', animation: true });
+    expect([out.kind, out.dest]).toEqual(['anime', 'animes/Spirit/Spirit.mkv']);
   });
 });

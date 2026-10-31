@@ -75,7 +75,7 @@
                         <button type="button" class="dest" (click)="edit(i)" [attr.aria-label]="'Modifier la destination de ' + r.name">{{ r.dest || 'à renseigner' }}</button>
                       }
                       @if (r.exists) { <span class="tag film">Déjà présent</span> }
-                      @if (r.needsReview) { <span class="tag">à relire</span> }
+                      @if (r.needsReview || r.destEdited) { <span class="tag">à relire</span> }
                       @if (r.message) { <div class="err-text" role="alert">{{ r.message }}</div> }
                     </td>
                   }

@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { ApiService } from '../api/api.service';
 import { Kind, TMDBResult } from '../api/models';
 import { apiError, formatBytes, KIND_CLASS, KIND_LABEL } from '../format';
-import { EditableRow, recompose, toEditable, toRequests, workName } from './rows';
+import { applyCard, EditableRow, recompose, toEditable, toRequests, workName } from './rows';
 
 interface Picker { key: string; q: string; tv: boolean; results: TMDBResult[]; busy: boolean; error: string }
 interface Group { key: string; title: string; idx: number[]; visible: number[]; hidden: number }
@@ -95,9 +95,10 @@ export class VideosPage {
     setTimeout(() => document.getElementById('dest-' + i)?.focus());
   }
   protected setDest(i: number, dest: string) {
+    if (this.editing() !== i) return; // Échap a déjà fermé l'éditeur : le blur ne sauvegarde pas
     this.editing.set(-1);
     const r = this.rows()[i];
-    this.patch(i, { dest: dest.trim(), checked: r.checked || (r.online && !r.exists && !r.dest && dest.trim() !== '') });
+    this.patch(i, { dest: dest.trim(), destEdited: true, checked: r.checked || (r.online && !r.exists && !r.dest && dest.trim() !== '') });
   }
 
   protected toggle(key: string) {
@@ -128,7 +129,7 @@ export class VideosPage {
   }
   /** La fiche choisie vaut pour toutes les lignes de l'œuvre ; la destination reste à relire. */
   protected choose(g: Group, tmdb: TMDBResult) {
-    g.idx.forEach((i) => this.patch(i, { tmdb }));
+    this.rows.update((rs) => rs.map((r, i) => (g.idx.includes(i) ? applyCard(r, tmdb) : r)));
     this.picker.set(null);
   }
 

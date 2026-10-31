@@ -1,4 +1,4 @@
-import { AnalyzeRow, EnqueueRequest, Kind } from '../api/models';
+import { AnalyzeRow, EnqueueRequest, Kind, TMDBResult } from '../api/models';
 
 export interface EditableRow extends AnalyzeRow {
   checked: boolean;
@@ -6,6 +6,8 @@ export interface EditableRow extends AnalyzeRow {
   bonus?: boolean;
   /** Message du serveur (400 / 409) affiché sur la ligne. */
   message?: string;
+  /** Destination saisie à la main : un changement de fiche ne la recalcule pas. */
+  destEdited?: boolean;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -18,9 +20,16 @@ export function toEditable(r: AnalyzeRow): EditableRow {
   return { ...r, checked: r.online && !r.exists && r.dest !== '' };
 }
 
+/** Même règle que le serveur : sans accents, mots en majuscule initiale, collés (œ→oe, æ→ae). */
+export function pascalCase(title: string): string {
+  return title.replace(/œ/g, 'oe').replace(/Œ/g, 'Oe').replace(/æ/g, 'ae').replace(/Æ/g, 'Ae')
+    .normalize('NFD').replace(/\p{M}/gu, '').split(/[^A-Za-z0-9]+/).filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1)).join('');
+}
+
 /** Recompose seulement le gabarit VideoPath / BonusPath ; la mise en forme du nom reste côté serveur. */
-export function recompose(r: EditableRow): string {
-  const name = workName(r.dest) || (r.tmdb?.title ?? r.name.replace(/\.[^.]+$/, '')).replace(/[^\p{L}\p{N}]/gu, '');
+export function recompose(r: EditableRow, work?: string): string {
+  const name = work || workName(r.dest) || (r.tmdb?.title ?? r.name.replace(/\.[^.]+$/, '')).replace(/[^\p{L}\p{N}]/gu, '');
   const s = `S${pad(r.season)}`;
   const e = ext(r.name);
   if (r.kind === 'series') {
@@ -45,4 +54,13 @@ export function toRequests(rows: EditableRow[]): EnqueueRequest[] {
     req.files.push({ input: r.input, name: r.name, size: r.size, dest: r.dest, overwrite: r.exists });
   }
   return [...groups.values()];
+}
+
+/** Applique une fiche TMDB : la destination suit le titre, sauf si elle a été saisie à la main. */
+export function applyCard(r: EditableRow, card: TMDBResult): EditableRow {
+  const next: EditableRow = { ...r, tmdb: card, message: '' };
+  if (r.destEdited) return next;
+  if (card.animation && !card.tv) next.kind = 'anime';
+  if (r.kind !== '' || next.kind !== '') next.dest = recompose(next, pascalCase(card.title));
+  return next;
 }

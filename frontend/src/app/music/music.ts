@@ -26,6 +26,8 @@ export class MusicPage {
   protected readonly error = signal('');
   /** Résultat de chaque ajout, par référence (« deezer:album:1 »). */
   protected readonly added = signal<Record<string, string>>({});
+  /** Échecs d'ajout (le bouton reste utilisable pour réessayer). */
+  protected readonly failed = signal<Record<string, string>>({});
 
   /** Lien Deezer collé : proposé directement, sans recherche. */
   protected readonly link = computed(() => {
@@ -71,13 +73,20 @@ export class MusicPage {
 
   protected async add(ref: string, request = ref) {
     const set = (v: string) => this.added.update((a) => ({ ...a, [ref]: v }));
+    if (this.added()[ref] === '…') return;
+    this.failed.update((f) => ({ ...f, [ref]: '' }));
+    set('…');
     try {
       await this.api.enqueue({ kind: 'music', title: '', ref: '', files: [], deezer: request });
       set('Ajouté');
     } catch (e) {
-      set((e as { status?: number }).status === 409 ? 'Déjà dans la file' : apiError(e, "L'ajout a échoué."));
+      const dup = (e as { status?: number }).status === 409;
+      this.added.update((a) => ({ ...a, [ref]: dup ? 'Déjà dans la file' : '' }));
+      if (!dup) this.failed.update((f) => ({ ...f, [ref]: apiError(e, "L'ajout a échoué.") }));
     }
   }
+
+  protected locked(ref: string) { return !!this.added()[ref]; }
 
   protected duration(s: number) {
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
