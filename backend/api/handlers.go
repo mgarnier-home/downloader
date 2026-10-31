@@ -256,7 +256,7 @@ func (h *Handlers) getQueue(w http.ResponseWriter, _ *http.Request) {
 func fileView(f store.File, progress map[int64]queue.Progress) FileView {
 	v := FileView{ID: f.ID, Name: f.OriginalName, Dest: f.Dest, State: f.State, Error: f.Error, Total: f.Size, Attempts: f.Attempts}
 	if p, ok := progress[f.ID]; ok {
-		v.Bytes, v.Total, v.Speed = p.Bytes, p.Total, p.Speed
+		v.Bytes, v.Total, v.Speed, v.Phase = p.Bytes, p.Total, p.Speed, p.Phase
 	} else if f.State == store.StateDone {
 		v.Bytes = f.Size
 	}
@@ -301,6 +301,10 @@ func (h *Handlers) history(w http.ResponseWriter, r *http.Request) {
 			row := HistoryRow{Title: j.Title, Name: f.OriginalName, Dest: f.Dest, Kind: j.Kind, Size: f.Size, State: f.State, Error: f.Error}
 			if f.FinishedAt != nil {
 				row.FinishedAt = *f.FinishedAt
+			}
+			var m store.PackMeta
+			if naming.IsPack(f.OriginalName) && json.Unmarshal([]byte(f.Meta), &m) == nil {
+				row.Pack = m.Pack
 			}
 			rows = append(rows, row)
 		}

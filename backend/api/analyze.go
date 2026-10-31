@@ -69,8 +69,9 @@ type searchKey struct {
 	tv    bool
 }
 
-func keyOf(p naming.Parsed) searchKey {
-	return searchKey{strings.ToLower(p.Title), p.Year, p.HasEpisode || p.Season > 0}
+// keyOf regroupe les recherches TMDB ; un pack est toujours une série.
+func keyOf(p naming.Parsed, pack bool) searchKey {
+	return searchKey{strings.ToLower(p.Title), p.Year, pack || p.HasEpisode || p.Season > 0}
 }
 
 type searchResult struct {
@@ -87,7 +88,7 @@ func (h *Handlers) place(ctx context.Context, rows []AnalyzeRow) {
 			continue
 		}
 		parsed[i] = naming.ParseFilename(row.Name)
-		if k := keyOf(parsed[i]); !slices.Contains(keys, k) {
+		if k := keyOf(parsed[i], naming.IsPack(row.Name)); !slices.Contains(keys, k) {
 			keys = append(keys, k)
 		}
 	}
@@ -95,7 +96,7 @@ func (h *Handlers) place(ctx context.Context, rows []AnalyzeRow) {
 	parallel(len(keys), func(i int) { results[i] = h.search(ctx, keys[i]) })
 	for i := range rows {
 		if rows[i].Online {
-			h.fill(&rows[i], parsed[i], results[slices.Index(keys, keyOf(parsed[i]))])
+			h.fill(&rows[i], parsed[i], results[slices.Index(keys, keyOf(parsed[i], naming.IsPack(rows[i].Name)))])
 		}
 	}
 }
@@ -118,7 +119,8 @@ func (h *Handlers) search(ctx context.Context, k searchKey) searchResult {
 // fill applique la règle de type, le nom (dossier existant, sinon PascalCase) et la destination.
 func (h *Handlers) fill(row *AnalyzeRow, p naming.Parsed, sr searchResult) {
 	row.Season, row.Episode = p.Season, p.Episode
-	tv := p.HasEpisode || p.Season > 0
+	row.Pack = naming.IsPack(row.Name)
+	tv := row.Pack || p.HasEpisode || p.Season > 0
 	switch {
 	case tv:
 		row.Kind = naming.Series
@@ -138,6 +140,10 @@ func (h *Handlers) fill(row *AnalyzeRow, p naming.Parsed, sr searchResult) {
 		} else {
 			name = cmp.Or(naming.PascalCase(t.Title), name)
 		}
+	}
+	if row.Pack && name != "" { // les épisodes et leur présence se voient après extraction
+		row.Dest = "series/" + name
+		return
 	}
 	if name == "" || tv && !p.HasEpisode { // série sans épisode : numéro ou Bonus à choisir
 		row.NeedsReview = true

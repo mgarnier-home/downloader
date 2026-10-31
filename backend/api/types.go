@@ -54,6 +54,7 @@ type AnalyzeRow struct {
 	NeedsReview bool        `json:"needsReview"`
 	Dest        string      `json:"dest"`
 	Exists      bool        `json:"exists"` // « Déjà présent » : ligne décochée par défaut
+	Pack        bool        `json:"pack"`   // archive de série : Dest est le dossier de la série
 }
 
 type QueueFile struct {
@@ -87,6 +88,7 @@ type FileView struct {
 	Total    int64       `json:"total"`
 	Speed    float64     `json:"speed"`
 	Attempts int         `json:"attempts"`
+	Phase    string      `json:"phase"` // "extraction" pendant celle d'un pack
 }
 
 type JobView struct {
@@ -104,14 +106,15 @@ type QueueView struct {
 }
 
 type HistoryRow struct {
-	FinishedAt time.Time   `json:"finishedAt"`
-	Title      string      `json:"title"`
-	Name       string      `json:"name"`
-	Dest       string      `json:"dest"`
-	Kind       naming.Kind `json:"kind"`
-	Size       int64       `json:"size"`
-	State      store.State `json:"state"`
-	Error      string      `json:"error"`
+	FinishedAt time.Time         `json:"finishedAt"`
+	Title      string            `json:"title"`
+	Name       string            `json:"name"`
+	Dest       string            `json:"dest"`
+	Kind       naming.Kind       `json:"kind"`
+	Size       int64             `json:"size"`
+	State      store.State       `json:"state"`
+	Error      string            `json:"error"`
+	Pack       *store.PackReport `json:"pack"` // bilan d'un pack, null sinon
 }
 
 type DeezerArtist struct {
