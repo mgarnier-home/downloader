@@ -47,6 +47,14 @@ type PackReport struct {
 	Placed  int `json:"placed"`  // épisodes rangés
 	Present int `json:"present"` // vidéos déjà présentes, non écrasées
 	Bonus   int `json:"bonus"`   // bonus rangés
+	// Items liste chaque vidéo du pack, dans l'ordre de l'archive ; absent des packs v0.2.0.
+	Items []PackItem `json:"items,omitempty"`
+}
+
+// PackItem est une vidéo du pack : sa destination et ce qui en a été fait.
+type PackItem struct {
+	Dest   string `json:"dest"`
+	Result string `json:"result"` // "placed", "present" ou "bonus"
 }
 
 type PackMeta struct {

@@ -1,4 +1,4 @@
-import { formatBytes, formatEta, formatSpeed, packSummary } from './format';
+import { formatBytes, formatEta, formatSpeed, packSummary, seasons } from './format';
 
 describe('format', () => {
   it('formatBytes', () => {
@@ -18,7 +18,21 @@ describe('format', () => {
   });
 });
 
+describe('seasons', () => {
+  it('liste les saisons distinctes, triées', () => {
+    expect(seasons(['series/A/S02/A.S02.E01.mkv', 'series/A/S01/A.S01.E01.mkv', 'series/A/S02/Bonus/x.mkv']))
+      .toBe('Saisons 1, 2');
+    expect(seasons(['series/A/S01/A.S01.E01.mkv'])).toBe('Saison 1');
+    expect(seasons(['series/A/Bonus/x.mkv', 'series/A'])).toBe('');
+  });
+});
+
 describe('packSummary', () => {
+  it('commence par les saisons quand le pack liste ses vidéos', () => {
+    expect(packSummary({ placed: 1, present: 0, bonus: 0, items: [{ dest: 'series/A/S03/A.S03.E01.mkv', result: 'placed' }] }))
+      .toBe('Saison 3 · 1 épisode rangé');
+  });
+
   it('donne le bilan complet', () => {
     expect(packSummary({ placed: 62, present: 2, bonus: 1 })).toBe('62 épisodes rangés · 2 déjà présents · 1 bonus');
   });

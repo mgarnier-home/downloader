@@ -73,6 +73,8 @@ export interface QueueFile {
   speed: number;
   attempts: number;
   phase: '' | 'extraction';
+  /** Origine : nom d'hôte du lien (« deezer » pour un titre Deezer). */
+  host: string;
 }
 export interface JobView {
   id: number;
@@ -86,7 +88,9 @@ export interface QueueView {
   jobs: JobView[];
 }
 
-export interface PackReport { placed: number; present: number; bonus: number }
+export interface PackItem { dest: string; result: 'placed' | 'present' | 'bonus' }
+/** Bilan d'un pack ; `items` manque sur les packs rangés avant la v0.3.0. */
+export interface PackReport { placed: number; present: number; bonus: number; items?: PackItem[] }
 
 export type HistoryFilter = 'all' | 'video' | 'music' | 'error';
 export interface HistoryEntry {
@@ -99,4 +103,5 @@ export interface HistoryEntry {
   state: FileState;
   error: string;
   pack: PackReport | null;
+  host: string;
 }

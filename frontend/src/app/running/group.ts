@@ -1,6 +1,7 @@
 import { HistoryEntry, JobView, QueueFile, QueueView } from '../api/models';
-import { formatBytes, formatEta } from '../format';
+import { formatBytes, formatEta, formatSpeed, seasons } from '../format';
 
+// speed : somme des fichiers, ne sert qu'à la durée restante de la file.
 export interface Summary { active: number; pending: number; errors: number; bytesLeft: number; speed: number }
 export interface Cell { label: string; state: 'done' | 'running' | 'pending' | 'error'; percent?: number }
 
@@ -24,8 +25,11 @@ export function fileMeta(f: QueueFile): string {
   const done = `${filePercent(f)} % · ${formatBytes(f.bytes)} / ${formatBytes(f.total)}`;
   if (f.phase === 'extraction') return `Extraction · ${done}`;
   const eta = formatEta(f.total - f.bytes, f.speed);
-  return `${done}${eta ? ' · ' + eta : ''}`;
+  return `${done}${f.speed > 0 ? ' · ' + formatSpeed(f.speed) : ''}${eta ? ' · ' + eta : ''}`;
 }
+
+/** Origines distinctes des fichiers d'un job : « 1fichier.com, rapidgator.net ». */
+export const hosts = (job: JobView): string => [...new Set(job.files.map((f) => f.host).filter(Boolean))].join(', ');
 
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
 
@@ -56,7 +60,10 @@ export function commonPath(dests: string[]): string {
   return out.length ? out.join('/') + '/' : '';
 }
 
-export interface DoneGroup { title: string; kind: HistoryEntry['kind']; count: number; at: Date; dest: string }
+export interface DoneGroup {
+  title: string; kind: HistoryEntry['kind']; count: number; at: Date; dest: string;
+  seasons: string; // saisons des packs du groupe, vide sinon
+}
 
 /** Rangés du jour (heure locale), regroupés par titre ; les dates nulles sont ignorées. */
 export function doneToday(rows: HistoryEntry[], now = new Date()): DoneGroup[] {
@@ -69,6 +76,9 @@ export function doneToday(rows: HistoryEntry[], now = new Date()): DoneGroup[] {
   }
   return [...groups.values()].map((g) => ({
     title: g[0].title || g[0].name, kind: g[0].kind, count: g.length,
-    at: new Date(g[0].finishedAt), dest: commonPath(g.map((r) => r.dest)),
+    at: new Date(g[0].finishedAt),
+    // La destination d'un pack est un dossier : la barre finale le garde dans le chemin commun.
+    dest: commonPath(g.map((r) => (r.pack ? r.dest + '/' : r.dest))),
+    seasons: seasons(g.flatMap((r) => r.pack?.items ?? []).map((i) => i.dest)),
   }));
 }

@@ -113,7 +113,12 @@ func TestPackPlaces(t *testing.T) {
 			t.Errorf("%s = %q, attendu %q", rel, got, want)
 		}
 	}
-	if m := fz.meta(t, f.ID); m != `{"pack":{"placed":2,"present":2,"bonus":1}}` {
+	if m := fz.meta(t, f.ID); m != `{"pack":{"placed":2,"present":2,"bonus":1,"items":[`+
+		`{"dest":"series/BreakingBad/S01/BreakingBad.S01.E01.mkv","result":"placed"},`+
+		`{"dest":"series/BreakingBad/S02/BreakingBad.S02.E01.MKV","result":"placed"},`+
+		`{"dest":"series/BreakingBad/S02/Bonus/Making-of.mkv","result":"bonus"},`+
+		`{"dest":"series/BreakingBad/S01/BreakingBad.S01.E02.mkv","result":"present"},`+
+		`{"dest":"series/BreakingBad/S01/BreakingBad.S01.E01.mkv","result":"present"}]}}` {
 		t.Errorf("meta = %s", m)
 	}
 	if _, err := os.Stat(filepath.Join(fz.mediaDir, "series/BreakingBad/S01/readme.nfo")); !os.IsNotExist(err) {
@@ -136,7 +141,7 @@ func TestPackAllPresent(t *testing.T) {
 	if err := fz.pack(context.Background(), f, j, part, func(int64, int64) {}); err != nil {
 		t.Fatal(err)
 	}
-	if m := fz.meta(t, f.ID); m != `{"pack":{"placed":0,"present":1,"bonus":0}}` {
+	if m := fz.meta(t, f.ID); m != `{"pack":{"placed":0,"present":1,"bonus":0,"items":[{"dest":"series/BreakingBad/S01/BreakingBad.S01.E01.mkv","result":"present"}]}}` {
 		t.Errorf("meta = %s", m)
 	}
 }
@@ -224,7 +229,7 @@ func TestPackResumeNeedsOnlyRemaining(t *testing.T) {
 	if err := fz.pack(context.Background(), f, j, part, func(int64, int64) {}); err != nil {
 		t.Fatal(err)
 	}
-	if m := fz.meta(t, f.ID); m != `{"pack":{"placed":1,"present":1,"bonus":0}}` {
+	if m := fz.meta(t, f.ID); !strings.HasPrefix(m, `{"pack":{"placed":1,"present":1,"bonus":0,`) {
 		t.Errorf("meta = %s", m)
 	}
 }
@@ -259,7 +264,7 @@ func TestPackNoOverwriteRace(t *testing.T) {
 	if got := string(readFile(t, filepath.Join(fz.mediaDir, dest))); got != "autre" {
 		t.Errorf("épisode écrasé : %q", got)
 	}
-	if m := fz.meta(t, f.ID); m != `{"pack":{"placed":0,"present":1,"bonus":0}}` {
+	if m := fz.meta(t, f.ID); m != `{"pack":{"placed":0,"present":1,"bonus":0,"items":[{"dest":"series/BreakingBad/S01/BreakingBad.S01.E01.mkv","result":"present"}]}}` {
 		t.Errorf("meta = %s", m)
 	}
 	fz.noTemp(t, f.ID)

@@ -534,10 +534,23 @@ func TestFileViewPhase(t *testing.T) {
 	}
 }
 
+func TestHost(t *testing.T) {
+	for in, want := range map[string]string{
+		"https://www.1fichier.com/?abc&af=1": "1fichier.com",
+		"https://h.example:8080/f.mkv":       "h.example",
+		"deezer:track:42":                    "deezer",
+		"":                                   "deezer",
+	} {
+		if got := host(store.File{Input: in, Source: "deezer"}); got != want {
+			t.Errorf("host(%q) = %q, attendu %q", in, got, want)
+		}
+	}
+}
+
 func TestHistoryPack(t *testing.T) {
 	e := newEnv(t)
 	_, files, err := e.h.Store.CreateJob(store.Job{Kind: naming.Series, Title: "Breaking Bad"}, []store.File{
-		{Source: "fake", Input: "https://h/p.rar", OriginalName: "Breaking.Bad.rar", Dest: "series/BreakingBad", Meta: `{"pack":{"placed":62,"present":2,"bonus":1}}`},
+		{Source: "fake", Input: "https://h/p.rar", OriginalName: "Breaking.Bad.rar", Dest: "series/BreakingBad", Meta: `{"pack":{"placed":62,"present":2,"bonus":1,"items":[{"dest":"series/BreakingBad/S01/BreakingBad.S01.E01.mkv","result":"placed"}]}}`},
 		{Source: "fake", Input: "https://h/e.mkv", OriginalName: "Breaking.Bad.S01E01.mkv", Dest: "series/BreakingBad/S01/BreakingBad.S01.E01.mkv"},
 	})
 	if err != nil {
@@ -551,7 +564,8 @@ func TestHistoryPack(t *testing.T) {
 	for _, r := range rows {
 		byName[r.Name] = r
 	}
-	if p := byName["Breaking.Bad.rar"].Pack; p == nil || *p != (store.PackReport{Placed: 62, Present: 2, Bonus: 1}) {
+	if p := byName["Breaking.Bad.rar"].Pack; p == nil || !reflect.DeepEqual(*p, store.PackReport{Placed: 62, Present: 2, Bonus: 1,
+		Items: []store.PackItem{{Dest: "series/BreakingBad/S01/BreakingBad.S01.E01.mkv", Result: "placed"}}}) {
 		t.Errorf("bilan du pack : %+v", p)
 	}
 	if p := byName["Breaking.Bad.S01E01.mkv"].Pack; p != nil {

@@ -112,7 +112,7 @@ func (p *packRun) entry(e archive.Entry, r io.Reader) error {
 		return err
 	}
 	if _, err := os.Stat(abs); p.used[dest] || err == nil {
-		p.report.Present++
+		p.add(dest, "present")
 		return nil
 	}
 	p.used[dest] = true
@@ -127,16 +127,28 @@ func (p *packRun) entry(e archive.Entry, r io.Reader) error {
 	if err != nil {
 		return err
 	}
-	if !placed {
-		p.report.Present++
-		return nil
-	}
-	if bonus {
-		p.report.Bonus++
-	} else {
-		p.report.Placed++
+	switch {
+	case !placed:
+		p.add(dest, "present")
+	case bonus:
+		p.add(dest, "bonus")
+	default:
+		p.add(dest, "placed")
 	}
 	return nil
+}
+
+// add compte la vidéo dest dans le bilan et l'ajoute à sa liste.
+func (p *packRun) add(dest, result string) {
+	switch result {
+	case "present":
+		p.report.Present++
+	case "bonus":
+		p.report.Bonus++
+	default:
+		p.report.Placed++
+	}
+	p.report.Items = append(p.report.Items, store.PackItem{Dest: dest, Result: result})
 }
 
 // place range tmp en abs sans jamais écraser : le lien échoue si une autre extraction a rangé abs

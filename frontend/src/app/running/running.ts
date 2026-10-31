@@ -3,7 +3,7 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../api/api.service';
 import { JobView, Kind, QueueFile } from '../api/models';
 import { apiError, formatBytes, formatEta, formatSpeed, KIND_CLASS, KIND_LABEL } from '../format';
-import { commonPath, doneToday, episodeCells, fileMeta, filePercent, jobPercent, summarize } from './group';
+import { commonPath, doneToday, episodeCells, fileMeta, filePercent, hosts, jobPercent, summarize } from './group';
 
 const FILTERS: { label: string; kind: Kind | '' }[] = [
   { label: 'Tout', kind: '' }, { label: 'Séries', kind: 'series' }, { label: 'Films', kind: 'movie' },
@@ -26,6 +26,7 @@ export class RunningPage {
   protected readonly jobPercent = jobPercent;
   protected readonly episodeCells = episodeCells;
   protected readonly commonPath = commonPath;
+  protected readonly hosts = hosts;
 
   protected readonly queue = this.api.queue();
   private readonly historyFilter = signal('all');
@@ -50,7 +51,6 @@ export class RunningPage {
     const s = this.summary();
     return s ? formatEta(s.bytesLeft, s.speed) : '';
   });
-  protected readonly speedText = computed(() => formatSpeed(this.summary()?.speed ?? 0));
 
   private readonly jobs = computed(() => {
     const k = this.kind();
@@ -77,7 +77,8 @@ export class RunningPage {
     const pending = this.count(job, 'pending');
     if (job.kind === 'music') return `${this.count(job, 'done')} / ${job.files.length} titres`;
     if (job.files.length === 1) return fileMeta(job.files[0]);
-    const parts = running.map((f) => `${episodeCells({ ...job, files: [f] })[0].label} ${filePercent(f)} %`);
+    const parts = running.map((f) =>
+      `${episodeCells({ ...job, files: [f] })[0].label} ${filePercent(f)} %${f.speed > 0 ? ` (${formatSpeed(f.speed)})` : ''}`);
     if (pending) parts.push(`${pending} en attente`);
     return parts.join(' · ');
   }
