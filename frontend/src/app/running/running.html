@@ -1,4 +1,6 @@
 <div class="pane">
+  <app-videos />
+
   @if (queue.error() !== undefined) {
     <p class="err-text" role="alert">La file est illisible pour le moment ; nouvelle tentative dans 2 s.</p>
   }
@@ -74,7 +76,7 @@
           </div>
         </div>
       } @empty {
-        <p class="empty">Rien en cours. <a routerLink="/videos">Ajouter des vidéos</a> ou <a routerLink="/music">de la musique</a>.</p>
+        <p class="empty">Rien en cours. Collez des liens ci-dessus ou <a routerLink="/music">ajoutez de la musique</a>.</p>
       }
     } @else if (queue.error() !== undefined) {
       <p class="empty err-text">Impossible de lire la file.</p>
@@ -83,18 +85,5 @@
     }
   </section>
 
-  <section class="card" aria-labelledby="h-done">
-    <div class="card-h"><h2 id="h-done" class="muted">Rangés aujourd'hui</h2><a class="btn small ghost end" routerLink="/history">Voir l'historique</a></div>
-    @for (d of done(); track $index) {
-      <div class="qrow">
-        <div class="t"><span class="dot"></span>{{ d.title }} <span [class]="'tag ' + kindClass[d.kind]">{{ kindLabel[d.kind] }}</span>
-          @if (d.count > 1) { <span class="muted light">{{ d.count }} fichiers</span> }
-          @if (d.seasons) { <span class="muted light">{{ d.seasons }}</span> }</div>
-        <div class="m num">{{ d.at.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }}</div>
-        <div class="s"><span class="path">{{ d.dest }}</span></div>
-      </div>
-    } @empty {
-      <p class="empty" [class.err-text]="historyFailed()">{{ historyFailed() ? "Impossible de lire l'historique." : "Rien n'a encore été rangé aujourd'hui." }}</p>
-    }
-  </section>
+  <app-history />
 </div>

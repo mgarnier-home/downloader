@@ -1,9 +1,11 @@
-import { DestroyRef, Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../api/api.service';
 import { JobView, Kind, QueueFile } from '../api/models';
 import { apiError, formatBytes, formatEta, formatSpeed, KIND_CLASS, KIND_LABEL } from '../format';
-import { commonPath, doneToday, episodeCells, fileMeta, filePercent, hosts, jobPercent, summarize } from './group';
+import { HistoryPage } from '../history/history';
+import { VideosPage } from '../videos/videos';
+import { commonPath, episodeCells, fileMeta, filePercent, hosts, jobPercent, summarize } from './group';
 
 const FILTERS: { label: string; kind: Kind | '' }[] = [
   { label: 'Tout', kind: '' }, { label: 'Séries', kind: 'series' }, { label: 'Films', kind: 'movie' },
@@ -12,7 +14,7 @@ const FILTERS: { label: string; kind: Kind | '' }[] = [
 
 @Component({
   selector: 'app-running',
-  imports: [RouterLink],
+  imports: [RouterLink, VideosPage, HistoryPage],
   templateUrl: './running.html',
   styleUrl: './running.css',
 })
@@ -29,17 +31,9 @@ export class RunningPage {
   protected readonly hosts = hosts;
 
   protected readonly queue = this.api.queue();
-  private readonly historyFilter = signal('all');
-  private readonly history = this.api.history(this.historyFilter);
   protected readonly kind = signal<Kind | ''>('');
   protected readonly message = signal('');
   protected readonly replacing = signal<number | null>(null);
-
-  constructor() {
-    // « Rangés aujourd'hui » : relu toutes les 10 s, la file ne dit pas ce qui vient de finir.
-    const timer = setInterval(() => this.history.reload(), 10_000);
-    inject(DestroyRef).onDestroy(() => clearInterval(timer));
-  }
 
   private readonly view = computed(() => (this.queue.hasValue() ? this.queue.value() : null));
   protected readonly summary = computed(() => {
@@ -60,12 +54,6 @@ export class RunningPage {
     this.jobs().flatMap((job) => job.files.filter((f) => f.state === 'error').map((file) => ({ job, file }))));
   protected readonly running = computed(() =>
     this.jobs().filter((j) => j.files.some((f) => f.state === 'running' || f.state === 'pending')));
-  protected readonly done = computed(() => {
-    if (!this.history.hasValue()) return [];
-    const k = this.kind();
-    return doneToday(this.history.value()).filter((g) => !k || g.kind === k);
-  });
-  protected readonly historyFailed = computed(() => this.history.error() !== undefined);
 
   protected count(job: JobView, state: QueueFile['state']) {
     return job.files.filter((f) => f.state === state).length;
@@ -96,7 +84,6 @@ export class RunningPage {
       this.message.set(apiError(e, "L'action a échoué."));
     }
     this.queue.reload();
-    this.history.reload();
   }
 
   protected togglePause() {

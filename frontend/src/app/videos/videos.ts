@@ -1,5 +1,4 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
 import { ApiService } from '../api/api.service';
 import { Kind, TMDBResult } from '../api/models';
 import { apiError, formatBytes, KIND_CLASS, KIND_LABEL } from '../format';
@@ -20,7 +19,6 @@ const guess = (name: string) => name.replace(/\.[^.]+$/, '').replace(/[._]/g, ' 
 })
 export class VideosPage {
   private readonly api = inject(ApiService);
-  private readonly router = inject(Router);
   protected readonly kinds = KINDS;
   protected readonly kindClass = KIND_CLASS;
   protected readonly kindLabel = KIND_LABEL;
@@ -148,6 +146,8 @@ export class VideosPage {
       }
     }
     this.launching.set(false);
-    if (!failed) await this.router.navigateByUrl('/');
+    if (failed) return;
+    this.links.set('');
+    this.api.queue().reload();
   }
 }

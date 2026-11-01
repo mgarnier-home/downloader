@@ -61,12 +61,12 @@ describe('App', () => {
   it("affiche « indisponible » quand /api/status répond 500", async () => {
     const { el, text } = await setup(null, true, queue, false);
     expect(text).toContain('indisponible');
-    expect(el.querySelectorAll('.tabs a').length).toBe(4);
+    expect(el.querySelectorAll('.tabs a').length).toBe(2);
   });
 
   it('survit à une erreur de /api/queue', async () => {
     const { el } = await setup(okStatus, false, null, true);
-    expect(el.querySelectorAll('.tabs a').length).toBe(4);
+    expect(el.querySelectorAll('.tabs a').length).toBe(2);
     expect(el.querySelector('.tabs em')).toBeNull();
   });
 });

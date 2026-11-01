@@ -20,9 +20,7 @@ export class App {
   private readonly api = inject(ApiService);
   protected readonly tabs = [
     { path: '/', label: 'En cours', exact: true },
-    { path: '/videos', label: 'Vidéos', exact: false },
     { path: '/music', label: 'Musique', exact: false },
-    { path: '/history', label: 'Historique', exact: false },
   ];
 
   /** Fichiers actifs ou en erreur (les « en attente » ne comptent pas). 0 si la file est illisible. */

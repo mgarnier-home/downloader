@@ -1,5 +1,5 @@
-import { HistoryEntry, JobView, QueueFile, QueueView } from '../api/models';
-import { doneToday, episodeCells, fileMeta, hosts, summarize } from './group';
+import { JobView, QueueFile, QueueView } from '../api/models';
+import { episodeCells, fileMeta, hosts, summarize } from './group';
 import { formatBytes } from '../format';
 
 const file = (over: Partial<QueueFile>): QueueFile => ({
@@ -61,20 +61,3 @@ describe('hosts', () => {
   });
 });
 
-describe('doneToday', () => {
-  const now = new Date('2026-11-01T12:00:00');
-  const pack = (dest: string, items: string[]): HistoryEntry => ({
-    finishedAt: '2026-11-01T10:00:00', title: 'Arcane', name: 'p.rar', dest, kind: 'series', size: 1, state: 'done',
-    error: '', host: '1fichier.com', pack: { placed: items.length, present: 0, bonus: 0, items: items.map((d) => ({ dest: d, result: 'placed' })) },
-  });
-
-  it('garde le dossier des packs et donne leurs saisons', () => {
-    const [g] = doneToday([
-      pack('series/Arcane', ['series/Arcane/S01/Arcane.S01.E01.mkv']),
-      pack('series/Arcane', ['series/Arcane/S02/Arcane.S02.E01.mkv']),
-    ], now);
-    expect(g.dest).toBe('series/Arcane/');
-    expect(g.seasons).toBe('Saisons 1, 2');
-    expect(g.count).toBe(2);
-  });
-});
