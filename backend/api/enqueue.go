@@ -88,11 +88,12 @@ func (h *Handlers) videoJob(req QueueRequest) (store.Job, []store.File, error) {
 		}
 		files[i] = store.File{Source: s.Name(), Input: input, OriginalName: f.Name, Size: f.Size, Dest: f.Dest, Overwrite: f.Overwrite}
 		if naming.IsPack(f.Name) {
-			// Un pack vise le dossier de sa série, qu'il ne remplace jamais.
+			// Un pack vise le dossier d'une saison (series/<Nom>/Sxx), qu'il ne remplace jamais.
 			if req.Kind != naming.Series {
 				return store.Job{}, nil, &httpError{http.StatusBadRequest, "Type invalide pour un pack : " + string(req.Kind)}
 			}
-			if parts := strings.Split(path.Clean(f.Dest), "/"); len(parts) != 2 || parts[0] != "series" {
+			dest := path.Clean(f.Dest)
+			if parts := strings.Split(dest, "/"); len(parts) != 3 || parts[0] != "series" || naming.PackDir(parts[1], naming.SeasonOf(parts[2])) != dest {
 				return store.Job{}, nil, &httpError{http.StatusBadRequest, "Destination invalide : " + f.Dest}
 			}
 			files[i].Overwrite, files[i].Meta = false, `{"pack":{}}`

@@ -101,20 +101,20 @@ describe('withDest', () => {
 
 describe('pack', () => {
   const bb: TMDBResult = { id: 1396, title: 'Breaking Bad', year: 2008, animation: false, poster: '', tv: true };
-  const pack = () => row({ name: 'Breaking.Bad.S03.rar', kind: 'series', tmdb: bb, season: 3, dest: 'series/BreakingBad', pack: true });
+  const pack = () => row({ name: 'Breaking.Bad.S03.rar', kind: 'series', tmdb: bb, season: 3, dest: 'series/BreakingBad/S03', pack: true });
 
-  it('recompose garde le dossier de la série, quelle que soit la saison', () => {
-    expect(recompose({ ...pack(), season: 5 })).toBe('series/BreakingBad');
+  it('recompose vise le dossier de la saison du pack', () => {
+    expect(recompose({ ...pack(), season: 5 })).toBe('series/BreakingBad/S05');
   });
 
   it('applyCard garde le type série et recalcule le dossier', () => {
     const anim: TMDBResult = { id: 2, title: 'Rick et Morty', year: 2013, animation: true, poster: '', tv: false };
-    expect(applyCard(pack(), anim)).toMatchObject({ kind: 'series', dest: 'series/RickEtMorty' });
+    expect(applyCard(pack(), anim)).toMatchObject({ kind: 'series', dest: 'series/RickEtMorty/S03' });
   });
 
   it('toRequests envoie le dossier sans écrasement', () => {
     expect(toRequests([pack()])[0].files[0]).toEqual({
-      input: 'https://h/x', name: 'Breaking.Bad.S03.rar', size: 100, dest: 'series/BreakingBad', overwrite: false,
+      input: 'https://h/x', name: 'Breaking.Bad.S03.rar', size: 100, dest: 'series/BreakingBad/S03', overwrite: false,
     });
   });
 });

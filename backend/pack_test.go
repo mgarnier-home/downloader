@@ -47,7 +47,7 @@ func (fz *finisher) addPack(t *testing.T) (store.Job, store.File) {
 	t.Helper()
 	j := store.Job{Kind: naming.Series, Title: "Breaking Bad", Ref: "tmdb:42"}
 	j, files, err := fz.store.CreateJob(j, []store.File{{Source: "http", Input: "http://x/p.zip",
-		OriginalName: "Breaking.Bad.S01-S02.zip", Dest: "series/BreakingBad", Meta: `{"pack":{}}`}})
+		OriginalName: "Breaking.Bad.S01.zip", Dest: "series/BreakingBad/S01", Meta: `{"pack":{}}`}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,8 +93,8 @@ func TestPackPlaces(t *testing.T) {
 	fz.put(t, "series/BreakingBad/S01/BreakingBad.S01.E02.mkv", "ancien")
 	part := zipPack(t, 0,
 		entry{"S01/Breaking.Bad.S01E01.mkv", "e1"},
-		entry{"Breaking.Bad.S02E01.MKV", "s2e1"},
-		entry{"S02/Making-of.mkv", "making"},
+		entry{"Breaking.Bad.S02E03.MKV", "e3"}, // saison du nom ignorée : celle du pack compte
+		entry{"Extras/Making-of.mkv", "making"},
 		entry{"S01/readme.nfo", "nfo"},
 		entry{"Breaking.Bad.S01E02.mkv", "nouveau"},
 		entry{"720p/Breaking.Bad.S01E01.mkv", "doublon"},
@@ -105,8 +105,8 @@ func TestPackPlaces(t *testing.T) {
 	}
 	for rel, want := range map[string]string{
 		"series/BreakingBad/S01/BreakingBad.S01.E01.mkv": "e1",
-		"series/BreakingBad/S02/BreakingBad.S02.E01.MKV": "s2e1",
-		"series/BreakingBad/S02/Bonus/Making-of.mkv":     "making",
+		"series/BreakingBad/S01/BreakingBad.S01.E03.MKV": "e3",
+		"series/BreakingBad/S01/Bonus/Making-of.mkv":     "making",
 		"series/BreakingBad/S01/BreakingBad.S01.E02.mkv": "ancien",
 	} {
 		if got := string(readFile(t, filepath.Join(fz.mediaDir, rel))); got != want {
@@ -115,8 +115,8 @@ func TestPackPlaces(t *testing.T) {
 	}
 	if m := fz.meta(t, f.ID); m != `{"pack":{"placed":2,"present":2,"bonus":1,"items":[`+
 		`{"dest":"series/BreakingBad/S01/BreakingBad.S01.E01.mkv","result":"placed"},`+
-		`{"dest":"series/BreakingBad/S02/BreakingBad.S02.E01.MKV","result":"placed"},`+
-		`{"dest":"series/BreakingBad/S02/Bonus/Making-of.mkv","result":"bonus"},`+
+		`{"dest":"series/BreakingBad/S01/BreakingBad.S01.E03.MKV","result":"placed"},`+
+		`{"dest":"series/BreakingBad/S01/Bonus/Making-of.mkv","result":"bonus"},`+
 		`{"dest":"series/BreakingBad/S01/BreakingBad.S01.E02.mkv","result":"present"},`+
 		`{"dest":"series/BreakingBad/S01/BreakingBad.S01.E01.mkv","result":"present"}]}}` {
 		t.Errorf("meta = %s", m)
@@ -127,7 +127,7 @@ func TestPackPlaces(t *testing.T) {
 	if n, ok := fz.index.Lookup(naming.Series, 42); !ok || n != "BreakingBad" {
 		t.Errorf("index : %q %v", n, ok)
 	}
-	if want := int64(len("e1s2e1making")); done != want || total != want { // seules les vidéos extraites comptent
+	if want := int64(len("e1e3making")); done != want || total != want { // seules les vidéos extraites comptent
 		t.Errorf("progression %d / %d, attendu %d", done, total, want)
 	}
 	fz.noTemp(t, f.ID)
@@ -268,4 +268,20 @@ func TestPackNoOverwriteRace(t *testing.T) {
 		t.Errorf("meta = %s", m)
 	}
 	fz.noTemp(t, f.ID)
+}
+
+// Un pack ajouté avant la v0.5.0 vise series/<Nom> : sa saison vient du nom de l'archive.
+func TestPackLegacyDest(t *testing.T) {
+	fz := newFinisher(t)
+	j, files, err := fz.store.CreateJob(store.Job{Kind: naming.Series, Title: "Breaking Bad"}, []store.File{{Source: "http",
+		Input: "http://x/p.zip", OriginalName: "Breaking.Bad.S03.zip", Dest: "series/BreakingBad", Meta: `{"pack":{}}`}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := fz.pack(context.Background(), files[0], j, zipPack(t, 0, entry{"Breaking.Bad.S03E01.mkv", "e1"}), func(int64, int64) {}); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(readFile(t, filepath.Join(fz.mediaDir, "series/BreakingBad/S03/BreakingBad.S03.E01.mkv"))); got != "e1" {
+		t.Errorf("épisode = %q", got)
+	}
 }

@@ -18,14 +18,20 @@ import (
 	"github.com/mgarnier-home/downloader/backend/store"
 )
 
-// pack extrait les vidéos de l'archive part et les range dans le dossier de la série (f.Dest).
+// pack extrait les vidéos de l'archive part et les range dans le dossier de saison f.Dest.
 // Rien n'est écrasé : une destination existante, ou déjà servie par ce pack, compte « déjà présente ».
 // shortcut: un arrêt pendant l'extraction la relance entière ; les épisodes déjà rangés comptent
 // alors en déjà présents, reprise fine si le besoin apparaît.
 func (fz *finisher) pack(ctx context.Context, f store.File, j store.Job, part string, progress func(done, total int64)) error {
+	// f.Dest vaut series/<Nom>/Sxx ; un pack ajouté avant la v0.5.0 vise series/<Nom>, sa saison
+	// vient alors du nom de l'archive.
+	parts := strings.Split(f.Dest, "/")
+	season := naming.ParseFilename(f.OriginalName).Season
+	if len(parts) > 2 {
+		season = naming.SeasonOf(parts[2])
+	}
 	run := &packRun{
-		ctx: ctx, mediaDir: fz.mediaDir, name: strings.TrimPrefix(f.Dest, "series/"),
-		season: naming.ParseFilename(f.OriginalName).Season, progress: progress,
+		ctx: ctx, mediaDir: fz.mediaDir, name: parts[1], season: season, progress: progress,
 		tmp: filepath.Join(fz.mediaDir, "download", strconv.FormatInt(f.ID, 10)), used: map[string]bool{},
 	}
 	if err := run.inventory(part); err != nil {

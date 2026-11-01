@@ -1,7 +1,6 @@
 package naming
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"path"
@@ -104,17 +103,18 @@ func Within(root, rel string) (string, error) {
 	return abs, nil
 }
 
-// PackDest range une vidéo extraite du pack de la série name ; entry est son chemin dans
-// l'archive, season la saison du nom de l'archive (0 sinon). Seul le nom du fichier est gardé.
+// PackDir est le dossier visé par le pack d'une saison : un pack ne contient qu'une saison.
+func PackDir(name string, season int) string {
+	return fmt.Sprintf("series/%s/S%02d", name, season)
+}
+
+// PackDest range une vidéo extraite du pack de la saison season de la série name ; entry est son
+// chemin dans l'archive, dont seul le nom du fichier est gardé. La saison écrite dans ce nom est
+// ignorée ; sans numéro d'épisode, la vidéo est un bonus de la saison.
 func PackDest(name, entry string, season int) (dest string, bonus bool) {
 	base := path.Base(entry)
-	p := ParseFilename(base)
-	if p.HasEpisode {
-		return VideoPath(Series, name, p.Season, p.Episode, p.Ext), false
+	if p := ParseFilename(base); p.HasEpisode {
+		return VideoPath(Series, name, season, p.Episode, p.Ext), false
 	}
-	s := cmp.Or(p.Season, SeasonOf(path.Base(path.Dir(entry))), season)
-	if s == 0 {
-		return path.Join("series", name, "Bonus", SafeName(base)), true
-	}
-	return BonusPath(name, s, base), true
+	return BonusPath(name, season, base), true
 }
