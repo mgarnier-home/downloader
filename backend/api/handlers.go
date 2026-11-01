@@ -395,7 +395,7 @@ func (h *Handlers) replace(w http.ResponseWriter, r *http.Request) {
 // replacement relit le nouveau lien de f, qui garde sa source : taille et nom sont repris (ceux du
 // lien mort fausseraient la reprise et le contrôle de longueur), l'extension de la destination suit.
 func (h *Handlers) replacement(ctx context.Context, f store.File, input string) (store.File, error) {
-	s, found := source.Pick(h.Sources, input)
+	s, found := h.pick(input, f.Source)
 	if !found || s.Name() != f.Source {
 		return f, &httpError{http.StatusBadRequest, "Lien non reconnu par la source " + f.Source}
 	}

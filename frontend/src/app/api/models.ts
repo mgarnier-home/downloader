@@ -32,6 +32,8 @@ export interface AnalyzeRow {
   exists: boolean;
   /** Archive d'une saison : `dest` est le dossier de la saison, les épisodes s'y rangent après extraction. */
   pack: boolean;
+  /** D'où viendra le téléchargement : `alldebrid`, ou `http` pour un lien direct. */
+  source: string;
 }
 
 export interface DeezerArtist { id: number; name: string; picture: string }
@@ -53,6 +55,7 @@ export interface EnqueueFile {
   size: number;
   dest: string;
   overwrite: boolean;
+  source: string;
 }
 export interface EnqueueRequest {
   kind: Kind;

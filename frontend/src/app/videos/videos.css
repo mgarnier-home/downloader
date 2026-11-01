@@ -1,5 +1,6 @@
 .replace{display:flex;gap:8px}
 .chk{width:1%}
+.nowrap{white-space:nowrap}
 .chk input{width:18px;height:18px;accent-color:var(--accent)}
 .name{word-break:break-all;max-width:28ch}
 .off{opacity:.85}

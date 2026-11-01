@@ -43,6 +43,8 @@ type apiError struct {
 	Message string `json:"message"`
 }
 
+func (e *apiError) Error() string { return e.Message }
+
 // call exécute un appel API et décode data dans out.
 func (a *AllDebrid) call(ctx context.Context, method, endpoint string, form url.Values, out any) error {
 	q := url.Values{"agent": {"downloader"}}
@@ -79,7 +81,7 @@ func (a *AllDebrid) call(ctx context.Context, method, endpoint string, form url.
 	}
 	if env.Status != "success" {
 		if env.Error != nil {
-			return fmt.Errorf("AllDebrid : %s", env.Error.Message)
+			return fmt.Errorf("AllDebrid : %w", env.Error)
 		}
 		return fmt.Errorf("AllDebrid : erreur HTTP %d", resp.StatusCode)
 	}
@@ -181,6 +183,16 @@ func (a *AllDebrid) Resolve(ctx context.Context, input string) ([]Item, error) {
 		it.Online, it.Error = false, hostError(input, *info.Error)
 		return []Item{it}, nil
 	}
+	// Débrider prouve qu'AllDebrid saura servir le lien ; le lien obtenu expire, il est redemandé au
+	// téléchargement. Une génération différée compte comme un succès, sans l'attendre.
+	if _, _, err := a.unlockOnce(ctx, input); err != nil {
+		var ae *apiError
+		if !errors.As(err, &ae) {
+			return nil, err
+		}
+		it.Online, it.Error = false, hostError(input, *ae)
+		return []Item{it}, nil
+	}
 	it.Name, it.Size = info.Filename, info.Size
 	return []Item{it}, nil
 }
@@ -220,21 +232,30 @@ func (a *AllDebrid) wait(ctx context.Context) error {
 	}
 }
 
-// unlock débride link ; si AllDebrid diffère la génération, interroge link/delayed.
-func (a *AllDebrid) unlock(ctx context.Context, link string) (string, error) {
+// unlockOnce demande le lien débridé : le lien direct, ou l'identifiant d'une génération différée.
+func (a *AllDebrid) unlockOnce(ctx context.Context, link string) (direct, delayed string, err error) {
 	var data struct {
 		Link    string          `json:"link"`
 		Delayed json.RawMessage `json:"delayed"`
 	}
 	if err := a.call(ctx, http.MethodPost, "/v4/link/unlock", url.Values{"link": {link}}, &data); err != nil {
-		return "", err
+		return "", "", err
 	}
 	if data.Link != "" {
-		return data.Link, nil
+		return data.Link, "", nil
 	}
 	id := strings.Trim(string(data.Delayed), `" `)
 	if id == "" || id == "null" || id == "0" {
-		return "", errors.New("AllDebrid : aucun lien débridé dans la réponse")
+		return "", "", errors.New("AllDebrid : aucun lien débridé dans la réponse")
+	}
+	return "", id, nil
+}
+
+// unlock débride link ; si AllDebrid diffère la génération, interroge link/delayed.
+func (a *AllDebrid) unlock(ctx context.Context, link string) (string, error) {
+	direct, id, err := a.unlockOnce(ctx, link)
+	if err != nil || direct != "" {
+		return direct, err
 	}
 	for waited := time.Duration(0); ; waited += delayedPoll {
 		var d struct {

@@ -82,7 +82,7 @@ func (h *Handlers) videoJob(req QueueRequest) (store.Job, []store.File, error) {
 	files := make([]store.File, len(req.Files))
 	for i, f := range req.Files {
 		input := strings.TrimSpace(f.Input)
-		s, ok := source.Pick(h.Sources, input)
+		s, ok := h.pick(input, f.Source)
 		if !ok {
 			return store.Job{}, nil, &httpError{http.StatusBadRequest, "Lien non reconnu : " + f.Name}
 		}

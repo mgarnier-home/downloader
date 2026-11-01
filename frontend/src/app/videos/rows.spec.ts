@@ -1,5 +1,5 @@
 import { AnalyzeRow, TMDBResult } from '../api/models';
-import { applyCard, EditableRow, pascalCase, recompose, toEditable, toRequests, withDest } from './rows';
+import { applyCard, EditableRow, pascalCase, recompose, toEditable, toRequests, via, withDest } from './rows';
 
 const boys: TMDBResult = { id: 76479, title: 'The Boys', year: 2019, animation: false, poster: '', tv: true };
 const dunkirk: TMDBResult = { id: 374720, title: 'Dunkerque', year: 2017, animation: false, poster: '', tv: false };
@@ -7,6 +7,7 @@ const dunkirk: TMDBResult = { id: 374720, title: 'Dunkerque', year: 2017, animat
 const base: AnalyzeRow = {
   input: 'https://h/x', name: 'x.mkv', size: 100, online: true, error: '', kind: 'movie', tmdb: null,
   season: 0, episode: 0, needsReview: false, dest: 'films/X/X.mkv', exists: false, pack: false,
+  source: 'alldebrid',
 };
 const row = (over: Partial<AnalyzeRow>): EditableRow => toEditable({ ...base, ...over });
 const episodes = (): EditableRow[] =>
@@ -24,7 +25,7 @@ describe('toRequests', () => {
     expect(reqs[0].files.length).toBe(8);
     expect(reqs[1]).toMatchObject({ kind: 'movie', title: 'Dunkerque', ref: 'tmdb:374720' });
     expect(reqs[1].files[0]).toEqual({
-      input: 'https://h/x', name: 'Dunkirk.2017.mkv', size: 100, dest: 'films/Dunkerque/Dunkerque.mkv', overwrite: false,
+      input: 'https://h/x', name: 'Dunkirk.2017.mkv', size: 100, dest: 'films/Dunkerque/Dunkerque.mkv', overwrite: false, source: 'alldebrid',
     });
   });
 
@@ -114,7 +115,15 @@ describe('pack', () => {
 
   it('toRequests envoie le dossier sans écrasement', () => {
     expect(toRequests([pack()])[0].files[0]).toEqual({
-      input: 'https://h/x', name: 'Breaking.Bad.S03.rar', size: 100, dest: 'series/BreakingBad/S03', overwrite: false,
+      input: 'https://h/x', name: 'Breaking.Bad.S03.rar', size: 100, dest: 'series/BreakingBad/S03', overwrite: false, source: 'alldebrid',
     });
+  });
+});
+
+describe('via', () => {
+  it('nomme AllDebrid ou le lien direct et son hôte', () => {
+    expect(via(row({}))).toBe('AllDebrid');
+    expect(via(row({ source: 'http', input: 'https://cdn.example.org/a.mkv' }))).toBe('Direct · cdn.example.org');
+    expect(via(row({ source: '' }))).toBe('—');
   });
 });
