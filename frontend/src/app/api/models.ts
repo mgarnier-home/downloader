@@ -30,7 +30,7 @@ export interface AnalyzeRow {
   needsReview: boolean;
   dest: string;
   exists: boolean;
-  /** Archive de série : `dest` est le dossier de la série, les épisodes se rangent après extraction. */
+  /** Archive d'une saison : `dest` est le dossier de la saison, les épisodes s'y rangent après extraction. */
   pack: boolean;
 }
 

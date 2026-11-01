@@ -32,7 +32,7 @@ export function recompose(r: EditableRow, work?: string): string {
   const name = work || workName(r.dest) || (r.tmdb?.title ?? r.name.replace(/\.[^.]+$/, '')).replace(/[^\p{L}\p{N}]/gu, '');
   const s = `S${pad(r.season)}`;
   const e = ext(r.name);
-  if (r.pack) return `series/${name}`;
+  if (r.pack) return `series/${name}/${s}`;
   if (r.kind === 'series') {
     return r.bonus
       ? `series/${name}/${s}/Bonus/${r.name}`

@@ -54,7 +54,7 @@ type AnalyzeRow struct {
 	NeedsReview bool        `json:"needsReview"`
 	Dest        string      `json:"dest"`
 	Exists      bool        `json:"exists"` // « Déjà présent » : ligne décochée par défaut
-	Pack        bool        `json:"pack"`   // archive de série : Dest est le dossier de la série
+	Pack        bool        `json:"pack"`   // archive d'une saison : Dest est le dossier de la saison
 }
 
 type QueueFile struct {

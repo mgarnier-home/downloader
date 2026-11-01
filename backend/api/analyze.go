@@ -142,7 +142,9 @@ func (h *Handlers) fill(row *AnalyzeRow, p naming.Parsed, sr searchResult) {
 		}
 	}
 	if row.Pack && name != "" { // les épisodes et leur présence se voient après extraction
-		row.Dest = "series/" + name
+		// Un pack est une saison : sans Sxx dans le nom, la 1 est proposée, à relire.
+		row.Season, row.NeedsReview = cmp.Or(p.Season, 1), row.NeedsReview || p.Season == 0
+		row.Dest = naming.PackDir(name, row.Season)
 		return
 	}
 	if name == "" || tv && !p.HasEpisode { // série sans épisode : numéro ou Bonus à choisir

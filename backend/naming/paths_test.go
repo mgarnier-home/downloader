@@ -79,6 +79,12 @@ func TestBonusPathSafe(t *testing.T) {
 	}
 }
 
+func TestPackDir(t *testing.T) {
+	if got := PackDir("BreakingBad", 2); got != "series/BreakingBad/S02" {
+		t.Errorf("PackDir = %q", got)
+	}
+}
+
 func TestPackDest(t *testing.T) {
 	cases := []struct {
 		entry  string
@@ -86,13 +92,11 @@ func TestPackDest(t *testing.T) {
 		dest   string
 		bonus  bool
 	}{
-		{"Breaking.Bad.S02E05.mkv", 1, "series/BreakingBad/S02/BreakingBad.S02.E05.mkv", false},
-		{"Pack/Season 1/BB.1x03.mp4", 0, "series/BreakingBad/S01/BreakingBad.S01.E03.mp4", false},
-		{"Bêtisier.S04.mkv", 1, "series/BreakingBad/S04/Bonus/Bêtisier.S04.mkv", true},
-		{"S03/Making-of.mkv", 1, "series/BreakingBad/S03/Bonus/Making-of.mkv", true},
-		{"Extras/Interview.mkv", 2, "series/BreakingBad/S02/Bonus/Interview.mkv", true},
-		{"Interview.mkv", 0, "series/BreakingBad/Bonus/Interview.mkv", true},
-		{"../../evil.mkv", 0, "series/BreakingBad/Bonus/evil.mkv", true},
+		{"Breaking.Bad.S02E05.mkv", 2, "series/BreakingBad/S02/BreakingBad.S02.E05.mkv", false},
+		{"Pack/Season 1/BB.1x03.mp4", 4, "series/BreakingBad/S04/BreakingBad.S04.E03.mp4", false},
+		{"Bêtisier.S04.mkv", 1, "series/BreakingBad/S01/Bonus/Bêtisier.S04.mkv", true},
+		{"S03/Making-of.mkv", 3, "series/BreakingBad/S03/Bonus/Making-of.mkv", true},
+		{"../../evil.mkv", 2, "series/BreakingBad/S02/Bonus/evil.mkv", true},
 	}
 	for _, c := range cases {
 		dest, bonus := PackDest("BreakingBad", c.entry, c.season)

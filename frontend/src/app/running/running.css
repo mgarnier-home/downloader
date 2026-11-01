@@ -1,11 +1,6 @@
 .light{font-weight:400}
 .idle{opacity:.8}
 .replace{display:flex;gap:8px}
-.cells{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:4px}
-.cells li{text-align:center}
-.cells .done{color:var(--ok);border-color:#50fa7b55}
-.cells .running{color:var(--accent);border-color:var(--accent)}
-.cells .error{color:var(--bad);border-color:#ff555555}
 .qrow .m .btn{margin-left:4px}
 /* Place du bouton « Lancer » fixe des vidéos, en bas de l'écran sur mobile. */
 @media (max-width:700px){.qrow .m{white-space:normal}.pane{padding-bottom:64px}}

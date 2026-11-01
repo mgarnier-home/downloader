@@ -466,7 +466,7 @@ func TestAnalyzePack(t *testing.T) {
 	e := newEnv(t)
 	e.tmdbBody["/search/tv"] = breakingBad
 	r := e.analyze("https://h/Breaking.Bad.Integrale.MULTI.1080p.rar")[0]
-	if !r.Pack || r.Kind != naming.Series || r.TMDB == nil || r.TMDB.ID != 1396 || r.Dest != "series/BreakingBad" || r.Exists || r.NeedsReview {
+	if !r.Pack || r.Kind != naming.Series || r.TMDB == nil || r.TMDB.ID != 1396 || r.Season != 1 || r.Dest != "series/BreakingBad/S01" || r.Exists || !r.NeedsReview {
 		t.Errorf("ligne : %+v", r)
 	}
 }
@@ -476,7 +476,7 @@ func TestAnalyzePackSeasonAndFolder(t *testing.T) {
 	e.tmdbBody["/search/tv"] = breakingBad
 	e.h.Index.Add(naming.Series, 1396, "Breaking_Bad")
 	r := e.analyze("https://h/Breaking.Bad.S03.rar")[0]
-	if !r.Pack || r.Season != 3 || r.Dest != "series/Breaking_Bad" {
+	if !r.Pack || r.Season != 3 || r.Dest != "series/Breaking_Bad/S03" || r.NeedsReview {
 		t.Errorf("ligne : %+v", r)
 	}
 }
@@ -492,11 +492,11 @@ func packBody(kind naming.Kind, dests ...string) string {
 
 func TestQueueTwoPacksSameSeries(t *testing.T) {
 	e := newEnv(t)
-	if rec := e.do(http.MethodPost, "/api/queue", packBody(naming.Series, "series/BreakingBad", "series/BreakingBad")); rec.Code != http.StatusCreated {
+	if rec := e.do(http.MethodPost, "/api/queue", packBody(naming.Series, "series/BreakingBad/S01", "series/BreakingBad/S02")); rec.Code != http.StatusCreated {
 		t.Fatalf("deux packs : %d %s", rec.Code, rec.Body)
 	}
 	b, _ := json.Marshal(QueueRequest{Kind: naming.Series, Title: "Breaking Bad", Ref: "tmdb:1396",
-		Files: []QueueFile{{Input: "https://h/autre.rar", Name: "Breaking.Bad.S03.rar", Size: 10, Dest: "series/BreakingBad"}}})
+		Files: []QueueFile{{Input: "https://h/autre.rar", Name: "Breaking.Bad.S03.rar", Size: 10, Dest: "series/BreakingBad/S03"}}})
 	if rec := e.do(http.MethodPost, "/api/queue", string(b)); rec.Code != http.StatusCreated {
 		t.Fatalf("troisième pack : %d %s", rec.Code, rec.Body)
 	}
@@ -512,13 +512,13 @@ func TestQueueTwoPacksSameSeries(t *testing.T) {
 
 func TestQueuePackBadDest(t *testing.T) {
 	e := newEnv(t)
-	for _, d := range []string{"series/A/B", "films/A", "series"} {
+	for _, d := range []string{"series/A", "series/A/B", "series/A/S01/x", "films/A/S01", "series"} {
 		rec := e.do(http.MethodPost, "/api/queue", packBody(naming.Series, d))
 		if rec.Code != http.StatusBadRequest || decode[ErrorBody](t, rec).Error != "Destination invalide : "+d {
 			t.Errorf("%s : %d %s", d, rec.Code, rec.Body)
 		}
 	}
-	rec := e.do(http.MethodPost, "/api/queue", packBody(naming.Movie, "series/A"))
+	rec := e.do(http.MethodPost, "/api/queue", packBody(naming.Movie, "series/A/S01"))
 	if rec.Code != http.StatusBadRequest || !strings.HasPrefix(decode[ErrorBody](t, rec).Error, "Type invalide") {
 		t.Errorf("film : %d %s", rec.Code, rec.Body)
 	}

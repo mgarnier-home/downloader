@@ -7,7 +7,8 @@ const FILTERS: { value: HistoryFilter; label: string }[] = [
   { value: 'all', label: 'Tout' }, { value: 'video', label: 'Vidéos' },
   { value: 'music', label: 'Musique' }, { value: 'error', label: 'Erreurs' },
 ];
-const RESULT: Record<PackItem['result'], string> = { placed: 'rangé', present: 'déjà présent', bonus: 'bonus' };
+// Une vidéo rangée n'a pas de mention : seules les exceptions sont signalées.
+const RESULT: Record<PackItem['result'], string> = { placed: '', present: 'déjà présent', bonus: 'bonus' };
 const KIND_NAME: Record<string, string> = { series: 'Série', movie: 'Film', anime: 'Animé', music: 'Musique' };
 
 @Component({

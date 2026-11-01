@@ -1,5 +1,5 @@
 import { JobView, QueueFile, QueueView } from '../api/models';
-import { episodeCells, fileMeta, hosts, summarize } from './group';
+import { activeFiles, fileLabel, fileMeta, summarize } from './group';
 import { formatBytes } from '../format';
 
 const file = (over: Partial<QueueFile>): QueueFile => ({
@@ -19,20 +19,24 @@ describe('summarize', () => {
   });
 });
 
-describe('episodeCells', () => {
-  it('donne une cellule par fichier, dans l’ordre, avec le pourcentage des actifs', () => {
-    const job: JobView = { id: 1, kind: 'series', title: 'The Boys', files: [
-      file({ id: 1, dest: 'series/TheBoys/S02/TheBoys.S02.E01.mkv', state: 'done' }),
-      file({ id: 2, dest: 'series/TheBoys/S02/TheBoys.S02.E02.mkv', state: 'error' }),
-      file({ id: 3, dest: 'series/TheBoys/S02/TheBoys.S02.E03.mkv', state: 'running', bytes: 620, total: 1000 }),
-      file({ id: 4, dest: 'series/TheBoys/S02/TheBoys.S02.E04.mkv', state: 'pending' }),
+describe('activeFiles', () => {
+  it('donne les fichiers actifs puis en attente, sans les terminés ni les erreurs', () => {
+    const a: JobView = { id: 1, kind: 'series', title: 'A', files: [
+      file({ id: 1, state: 'pending' }), file({ id: 2, state: 'done' }), file({ id: 3, state: 'running' }),
     ] };
-    expect(episodeCells(job)).toEqual([
-      { label: 'E01', state: 'done' },
-      { label: 'E02', state: 'error' },
-      { label: 'E03', state: 'running', percent: 62 },
-      { label: 'E04', state: 'pending' },
-    ]);
+    const b: JobView = { id: 2, kind: 'movie', title: 'B', files: [file({ id: 4, state: 'running' }), file({ id: 5, state: 'error' })] };
+    expect(activeFiles([a, b]).map((r) => [r.job.id, r.file.id])).toEqual([[1, 3], [2, 4], [1, 1]]);
+  });
+});
+
+describe('fileLabel', () => {
+  const job = (kind: JobView['kind']): JobView => ({ id: 1, kind, title: 'x', files: [] });
+  it('distingue épisode, pack, morceau et film', () => {
+    expect(fileLabel(job('series'), file({}))).toBe('S02 E01');
+    expect(fileLabel(job('series'), file({ dest: 'series/TheBoys/S02' }))).toBe('S02');
+    expect(fileLabel(job('series'), file({ dest: 'series/TheBoys', name: 'The.Boys.s03.1080p.rar' }))).toBe('S03');
+    expect(fileLabel(job('music'), file({ dest: 'musics/A/B/A - B - 01 - Titre.mp3' }))).toBe('A - B - 01 - Titre');
+    expect(fileLabel(job('movie'), file({ dest: 'films/X/X.mkv' }))).toBe('');
   });
 });
 
@@ -51,13 +55,3 @@ describe('fileMeta', () => {
     expect(fileMeta(file({ state: 'pending', total: 1000 }))).toBe(`en attente · ${formatBytes(1000)}`);
   });
 });
-
-describe('hosts', () => {
-  it('liste les origines distinctes du job', () => {
-    const job: JobView = { id: 1, kind: 'series', title: 'A', files: [
-      file({ id: 1 }), file({ id: 2, host: 'rapidgator.net' }), file({ id: 3 }), file({ id: 4, host: '' }),
-    ] };
-    expect(hosts(job)).toBe('1fichier.com, rapidgator.net');
-  });
-});
-

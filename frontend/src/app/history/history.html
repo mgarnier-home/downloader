@@ -27,7 +27,7 @@
                           <summary class="muted">Voir les {{ r.pack.items!.length }} vidéos</summary>
                           <ul class="items">
                             @for (i of r.pack.items; track $index) {
-                              <li><span class="mono">{{ i.dest.slice(r.dest.length + 1) }}</span> <span class="muted">{{ result[i.result] }}</span></li>
+                              <li><span class="mono">{{ i.dest.slice(r.dest.length + 1) }}</span>@if (result[i.result]) { <span class="muted">{{ result[i.result] }}</span> }</li>
                             }
                           </ul>
                         </details>
