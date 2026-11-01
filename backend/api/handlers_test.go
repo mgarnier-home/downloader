@@ -647,3 +647,20 @@ func TestAnalyzeTriesAllDebridFirst(t *testing.T) {
 		}
 	}
 }
+
+func TestStats(t *testing.T) {
+	e := newEnv(t)
+	e.job(naming.Movie, store.StateRunning, store.StatePending, store.StatePending, store.StateError, store.StateDone, store.StateDone)
+	rec := e.do(http.MethodGet, "/api/stats", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	s := decode[Stats](t, rec)
+	// Taille 10 par fichier, rien de téléchargé : reste celui de l'actif et des deux en attente.
+	if s.Active != 1 || s.Pending != 2 || s.Errors != 1 || s.DoneToday != 2 || s.BytesLeft != 30 || s.Paused || s.FreeBytes <= 0 {
+		t.Errorf("stats : %+v", s)
+	}
+	if !strings.Contains(rec.Body.String(), `"alldebrid":`) {
+		t.Errorf("état des services absent : %s", rec.Body)
+	}
+}

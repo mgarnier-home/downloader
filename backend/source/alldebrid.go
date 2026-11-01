@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/mgarnier-home/utils/logger"
 )
 
 // AllDebrid débride les liens d'hébergeurs via l'API v4.
@@ -142,6 +144,12 @@ func hostLabel(link string) string {
 	return parts[0]
 }
 
+// logRefusal garde le code brut d'AllDebrid, que le message affiché ne montre pas : LINK_DOWN peut
+// venir d'une vérification ratée chez l'hébergeur alors que le fichier existe.
+func logRefusal(link, step string, e *apiError) {
+	logger.Warnf("AllDebrid : %s : refus de link/%s : %s (%s)", link, step, e.Code, e.Message)
+}
+
 func hostError(link string, e apiError) string {
 	if e.Code == "LINK_DOWN" {
 		return hostLabel(link) + " : fichier supprimé par l'hébergeur"
@@ -153,6 +161,9 @@ func (a *AllDebrid) item(link string) Item {
 	return Item{Online: true, Open: func(ctx context.Context, offset int64) (io.ReadCloser, bool, error) {
 		// Les liens débridés expirent : on débride au moment du téléchargement.
 		direct, err := a.unlock(ctx, link)
+		if ae := (*apiError)(nil); errors.As(err, &ae) {
+			logRefusal(link, "unlock", ae)
+		}
 		if err != nil {
 			return nil, false, fmt.Errorf("%s : %w", hostLabel(link), err)
 		}
@@ -180,6 +191,7 @@ func (a *AllDebrid) Resolve(ctx context.Context, input string) ([]Item, error) {
 	}
 	it, info := a.item(input), data.Infos[0]
 	if info.Error != nil {
+		logRefusal(input, "infos", info.Error)
 		it.Online, it.Error = false, hostError(input, *info.Error)
 		return []Item{it}, nil
 	}
@@ -190,6 +202,7 @@ func (a *AllDebrid) Resolve(ctx context.Context, input string) ([]Item, error) {
 		if !errors.As(err, &ae) {
 			return nil, err
 		}
+		logRefusal(input, "unlock", ae)
 		it.Online, it.Error = false, hostError(input, *ae)
 		return []Item{it}, nil
 	}
