@@ -28,6 +28,19 @@ type Status struct {
 	FreeBytes int64           `json:"freeBytes"`
 }
 
+// Stats est la réponse de GET /api/stats, lue par un tableau de bord : état de la file, fichiers
+// rangés depuis minuit (heure du serveur), puis les champs de Status.
+type Stats struct {
+	Active    int     `json:"active"`
+	Pending   int     `json:"pending"`
+	Errors    int     `json:"errors"`
+	Paused    bool    `json:"paused"`
+	Speed     float64 `json:"speed"`     // octets/s, somme des fichiers actifs
+	BytesLeft int64   `json:"bytesLeft"` // reste à télécharger des actifs et des en attente
+	DoneToday int     `json:"doneToday"`
+	Status
+}
+
 type AnalyzeRequest struct {
 	Links []string `json:"links"`
 }

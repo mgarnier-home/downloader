@@ -57,6 +57,7 @@ func (h *Handlers) Register(mux *http.ServeMux) {
 		writeError(w, http.StatusNotFound, "Route inconnue") // pas de repli sur le front
 	})
 	mux.HandleFunc("GET /api/status", h.getStatus)
+	mux.HandleFunc("GET /api/stats", h.getStats)
 	mux.HandleFunc("GET /api/tmdb/search", h.tmdbSearch)
 	mux.HandleFunc("GET /api/deezer/search", h.deezerSearch)
 	mux.HandleFunc("GET /api/queue", h.getQueue)
@@ -119,10 +120,15 @@ func parallel(n int, fn func(i int)) {
 // --- État des services ---
 
 func (h *Handlers) getStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, h.currentStatus(r.Context()))
+}
+
+// currentStatus donne l'état des services, relu au plus toutes les 10 min, et l'espace libre.
+func (h *Handlers) currentStatus(reqCtx context.Context) Status {
 	h.statusMu.Lock()
 	if time.Since(h.statusAt) > statusTTL {
 		// Détaché de la requête : un client parti ne doit pas mettre une erreur en cache 10 min.
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), statusTimeout)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(reqCtx), statusTimeout)
 		h.status, h.statusAt = h.checkServices(ctx), time.Now()
 		cancel()
 	}
@@ -133,6 +139,38 @@ func (h *Handlers) getStatus(w http.ResponseWriter, r *http.Request) {
 		logger.Warnf("api : espace libre de la médiathèque : %v", err)
 	} else {
 		s.FreeBytes = int64(fs.Bavail) * int64(fs.Bsize)
+	}
+	return s
+}
+
+// getStats résume la file pour un tableau de bord, en un appel et sans le détail des fichiers.
+func (h *Handlers) getStats(w http.ResponseWriter, r *http.Request) {
+	files, err := h.Store.Files()
+	if err != nil {
+		internal(w, "lecture de la file", err)
+		return
+	}
+	s := Stats{Paused: h.Queue.Paused(), Status: h.currentStatus(r.Context())}
+	y, m, d := time.Now().Date()
+	midnight := time.Date(y, m, d, 0, 0, 0, 0, time.Local)
+	progress := h.Queue.Progress()
+	for _, f := range files {
+		fv := fileView(f, progress)
+		s.Speed += fv.Speed
+		switch f.State {
+		case store.StateRunning:
+			s.Active++
+			s.BytesLeft += max(0, fv.Total-fv.Bytes)
+		case store.StatePending:
+			s.Pending++
+			s.BytesLeft += max(0, fv.Total-fv.Bytes)
+		case store.StateError:
+			s.Errors++
+		case store.StateDone:
+			if f.FinishedAt != nil && !f.FinishedAt.Before(midnight) {
+				s.DoneToday++
+			}
+		}
 	}
 	writeJSON(w, http.StatusOK, s)
 }

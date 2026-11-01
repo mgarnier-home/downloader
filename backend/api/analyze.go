@@ -50,15 +50,15 @@ func (h *Handlers) resolve(ctx context.Context, link string) []AnalyzeRow {
 		return []AnalyzeRow{{Input: link, Error: "Lien Deezer : utiliser l'onglet Musique"}}
 	}
 	var items []source.Item
-	if ad, ok := h.named("alldebrid"); ok && s.Name() == "http" {
-		// AllDebrid d'abord, même pour un hôte absent de sa liste : le direct n'est qu'un repli.
-		if it, err := ad.Resolve(ctx, link); err == nil && len(it) == 1 && it[0].Online {
+	if s.Name() == "http" {
+		if ad, it := h.viaAllDebrid(ctx, link); ad != nil {
 			s, items = ad, it
 		}
 	}
 	if items == nil {
 		var err error
 		if items, err = s.Resolve(ctx, link); err != nil {
+			logger.Warnf("analyse : %s : %s : %v", link, s.Name(), err)
 			return []AnalyzeRow{{Input: link, Error: err.Error(), Source: s.Name()}}
 		}
 	}
@@ -68,8 +68,28 @@ func (h *Handlers) resolve(ctx context.Context, link string) []AnalyzeRow {
 	rows := make([]AnalyzeRow, len(items))
 	for i, it := range items {
 		rows[i] = AnalyzeRow{Input: link, Name: it.Name, Size: it.Size, Online: it.Online, Error: it.Error, Source: s.Name()}
+		if it.Online {
+			logger.Infof("analyse : %s : %s, en ligne : %s (%d o)", link, s.Name(), it.Name, it.Size)
+		} else {
+			logger.Warnf("analyse : %s : %s, hors ligne : %s", link, s.Name(), it.Error)
+		}
 	}
 	return rows
+}
+
+// viaAllDebrid tente AllDebrid pour un lien absent de sa liste d'hébergeurs : le direct n'est qu'un
+// repli. Source nulle si AllDebrid ne le prend pas.
+func (h *Handlers) viaAllDebrid(ctx context.Context, link string) (source.Source, []source.Item) {
+	ad, ok := h.named("alldebrid")
+	if !ok {
+		return nil, nil
+	}
+	it, err := ad.Resolve(ctx, link)
+	if err == nil && len(it) == 1 && it[0].Online {
+		return ad, it
+	}
+	logger.Infof("analyse : %s : AllDebrid ne le prend pas (%v), repli sur le direct", link, cmp.Or(err, errors.New("hors ligne")))
+	return nil, nil
 }
 
 // named renvoie la source de ce nom.
