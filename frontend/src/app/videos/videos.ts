@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { ApiService } from '../api/api.service';
 import { Kind, TMDBResult } from '../api/models';
 import { apiError, formatBytes, KIND_CLASS, KIND_LABEL } from '../format';
-import { applyCard, EditableRow, recompose, toEditable, toRequests, withDest, workName } from './rows';
+import { applyCard, EditableRow, recompose, toEditable, toRequests, via, withDest, workName } from './rows';
 
 interface Picker { key: string; q: string; tv: boolean; results: TMDBResult[]; busy: boolean; error: string }
 interface Group { key: string; title: string; idx: number[] }
@@ -23,6 +23,7 @@ export class VideosPage {
   protected readonly kindClass = KIND_CLASS;
   protected readonly kindLabel = KIND_LABEL;
   protected readonly formatBytes = formatBytes;
+  protected readonly via = via;
 
   protected readonly links = signal('');
   protected readonly rows = signal<EditableRow[]>([]);

@@ -52,9 +52,16 @@ export function toRequests(rows: EditableRow[]): EnqueueRequest[] {
       req = { kind: r.kind as Kind, title: r.tmdb?.title ?? workName(r.dest), ref: r.tmdb ? `tmdb:${r.tmdb.id}` : '', files: [], deezer: '' };
       groups.set(key, req);
     }
-    req.files.push({ input: r.input, name: r.name, size: r.size, dest: r.dest, overwrite: r.exists });
+    req.files.push({ input: r.input, name: r.name, size: r.size, dest: r.dest, overwrite: r.exists, source: r.source });
   }
   return [...groups.values()];
+}
+
+/** Colonne Source : « AllDebrid », ou « Direct · <hôte> » pour un lien téléchargé tel quel. */
+export function via(r: AnalyzeRow): string {
+  if (r.source === 'alldebrid') return 'AllDebrid';
+  if (r.source !== 'http') return '—';
+  try { return `Direct · ${new URL(r.input).hostname}`; } catch { return 'Direct'; }
 }
 
 /** Nouvelle destination : « déjà présent » ne valait que pour celle analysée par le serveur. */

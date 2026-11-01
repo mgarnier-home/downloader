@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -599,5 +600,50 @@ func TestReplacePack(t *testing.T) {
 	}
 	if f := e.files()[0]; f.Dest != "series/BreakingBad" || f.OriginalName != "Breaking.Bad.S01.v2.zip" {
 		t.Errorf("pack remplacé : %+v", f)
+	}
+}
+
+// namedSource : AllDebrid ne connaît que 1fichier dans sa liste, mais débride aussi les liens
+// « debridable » ; le direct accepte tout lien HTTPS.
+type namedSource struct{ name string }
+
+func (n namedSource) Name() string { return n.name }
+func (n namedSource) Match(in string) bool {
+	return strings.HasPrefix(in, "https://") && (n.name == "http" || strings.Contains(in, "1fichier"))
+}
+func (namedSource) Reopen(context.Context, string, string) (source.Item, error) {
+	return source.Item{}, errors.New("inutile en test")
+}
+func (n namedSource) Resolve(_ context.Context, in string) ([]source.Item, error) {
+	if n.name == "alldebrid" && !strings.Contains(in, "1fichier") && !strings.Contains(in, "debridable") {
+		return []source.Item{{Name: path.Base(in), Error: "hôte non pris en charge"}}, nil
+	}
+	return []source.Item{{Name: path.Base(in), Size: 10, Online: true}}, nil
+}
+
+func TestAnalyzeTriesAllDebridFirst(t *testing.T) {
+	e := newEnv(t)
+	e.h.Sources = []source.Source{namedSource{"alldebrid"}, namedSource{"http"}}
+	rows := e.analyze("https://1fichier.com/a.mkv", "https://x.org/debridable.mkv", "https://x.org/direct.mkv")
+	var got []string
+	for _, r := range rows {
+		got = append(got, r.Source)
+	}
+	if !slices.Equal(got, []string{"alldebrid", "alldebrid", "http"}) || !rows[2].Online {
+		t.Errorf("sources : %v, lignes : %+v", got, rows)
+	}
+	body := func(input, src string) string {
+		b, _ := json.Marshal(QueueRequest{Kind: naming.Movie, Title: "A", Files: []QueueFile{{Input: input, Name: "a.mkv", Size: 10, Dest: "films/" + src + "/a.mkv", Source: src}}})
+		return string(b)
+	}
+	for _, src := range []string{"alldebrid", "http"} {
+		if rec := e.do(http.MethodPost, "/api/queue", body("https://x.org/"+src+".mkv", src)); rec.Code != http.StatusCreated {
+			t.Fatalf("%s : %d %s", src, rec.Code, rec.Body)
+		}
+	}
+	for _, f := range e.files() {
+		if want := path.Base(path.Dir(f.Dest)); f.Source != want {
+			t.Errorf("%s : source %s, attendu %s", f.Input, f.Source, want)
+		}
 	}
 }

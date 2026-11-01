@@ -23,7 +23,7 @@
       </div>
       <div class="scroll">
         <table class="rows">
-          <thead><tr><th><span class="sr-only">Inclure</span></th><th>Fichier reçu</th><th>Taille</th><th>Lien</th><th>Fiche TMDB</th><th>Type</th><th>Destination</th></tr></thead>
+          <thead><tr><th><span class="sr-only">Inclure</span></th><th>Fichier reçu</th><th>Taille</th><th>Lien</th><th>Source</th><th>Fiche TMDB</th><th>Type</th><th>Destination</th></tr></thead>
           @for (g of groups(); track g.key) {
             <tbody>
               @for (i of g.idx; track i) {
@@ -33,8 +33,9 @@
                          (change)="patch(i, { checked: $any($event.target).checked })"
                          [attr.aria-label]="(r.exists ? 'Écraser le fichier existant : ' : 'Inclure ') + r.name"></td>
                   <td class="mono name" data-l="Fichier">{{ r.name }}@if (r.online && r.error) { <div class="err-text">{{ r.error }}</div> }</td>
-                  <td class="num" data-l="Taille">{{ r.online ? formatBytes(r.size) : '—' }}</td>
-                  <td data-l="Lien"><span class="dot" [class.bad]="!r.online"></span> {{ r.online ? 'en ligne' : 'hors ligne' }}</td>
+                  <td class="num nowrap" data-l="Taille">{{ r.online ? formatBytes(r.size) : '—' }}</td>
+                  <td class="nowrap" data-l="Lien"><span class="dot" [class.bad]="!r.online"></span> {{ r.online ? 'en ligne' : 'hors ligne' }}</td>
+                  <td data-l="Source" [class.muted]="r.source !== 'alldebrid'">{{ via(r) }}</td>
                   @if (!r.online) {
                     <td colspan="3" class="err-text">{{ r.error || 'Lien hors ligne' }}, il ne sera pas ajouté</td>
                   } @else {
@@ -90,7 +91,7 @@
               }
               @if (picker(); as p) {
                 @if (p.key === g.key) {
-                  <tr class="pick"><td></td><td colspan="6">
+                  <tr class="pick"><td></td><td colspan="7">
                     <form class="replace" (submit)="$event.preventDefault(); search()">
                       <label class="sr-only" for="tmdb-q">Rechercher une fiche TMDB</label>
                       <input id="tmdb-q" class="field" [value]="p.q" (input)="setQuery($any($event.target).value)">

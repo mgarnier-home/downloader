@@ -49,18 +49,47 @@ func (h *Handlers) resolve(ctx context.Context, link string) []AnalyzeRow {
 	if s.Name() == "deezer" {
 		return []AnalyzeRow{{Input: link, Error: "Lien Deezer : utiliser l'onglet Musique"}}
 	}
-	items, err := s.Resolve(ctx, link)
-	if err != nil {
-		return []AnalyzeRow{{Input: link, Error: err.Error()}}
+	var items []source.Item
+	if ad, ok := h.named("alldebrid"); ok && s.Name() == "http" {
+		// AllDebrid d'abord, même pour un hôte absent de sa liste : le direct n'est qu'un repli.
+		if it, err := ad.Resolve(ctx, link); err == nil && len(it) == 1 && it[0].Online {
+			s, items = ad, it
+		}
+	}
+	if items == nil {
+		var err error
+		if items, err = s.Resolve(ctx, link); err != nil {
+			return []AnalyzeRow{{Input: link, Error: err.Error(), Source: s.Name()}}
+		}
 	}
 	if len(items) == 0 {
-		return []AnalyzeRow{{Input: link, Error: "Aucun fichier"}}
+		return []AnalyzeRow{{Input: link, Error: "Aucun fichier", Source: s.Name()}}
 	}
 	rows := make([]AnalyzeRow, len(items))
 	for i, it := range items {
-		rows[i] = AnalyzeRow{Input: link, Name: it.Name, Size: it.Size, Online: it.Online, Error: it.Error}
+		rows[i] = AnalyzeRow{Input: link, Name: it.Name, Size: it.Size, Online: it.Online, Error: it.Error, Source: s.Name()}
 	}
 	return rows
+}
+
+// named renvoie la source de ce nom.
+func (h *Handlers) named(name string) (source.Source, bool) {
+	for _, s := range h.Sources {
+		if s.Name() == name {
+			return s, true
+		}
+	}
+	return nil, false
+}
+
+// pick choisit la source d'input. Un lien que la liste des hébergeurs d'AllDebrid ignore lui reste
+// confié quand l'analyse a vérifié qu'il le débride (prefer vaut alors "alldebrid").
+func (h *Handlers) pick(input, prefer string) (source.Source, bool) {
+	s, ok := source.Pick(h.Sources, input)
+	if ok && s.Name() == "http" && prefer == "alldebrid" {
+		return h.named("alldebrid")
+	}
+	return s, ok
 }
 
 type searchKey struct {

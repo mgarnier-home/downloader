@@ -55,6 +55,7 @@ type AnalyzeRow struct {
 	Dest        string      `json:"dest"`
 	Exists      bool        `json:"exists"` // « Déjà présent » : ligne décochée par défaut
 	Pack        bool        `json:"pack"`   // archive d'une saison : Dest est le dossier de la saison
+	Source      string      `json:"source"` // d'où viendra le téléchargement : "alldebrid" ou "http" (direct)
 }
 
 type QueueFile struct {
@@ -63,6 +64,7 @@ type QueueFile struct {
 	Size      int64  `json:"size"`
 	Dest      string `json:"dest"`
 	Overwrite bool   `json:"overwrite"`
+	Source    string `json:"source"` // source retenue par l'analyse ; vide : d'après le lien
 }
 
 type QueueRequest struct {

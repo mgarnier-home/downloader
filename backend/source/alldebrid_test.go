@@ -256,3 +256,34 @@ func requirePost(t *testing.T, r *http.Request) {
 		}
 	}
 }
+
+const infosOK = `{"status":"success","data":{"infos":[{"link":"https://1fichier.com/?abc","filename":"Film.mkv","size":42}]}}`
+
+func TestAllDebridResolveUnlockRefused(t *testing.T) {
+	a := adServer(t, infosOK, `{"status":"error","error":{"code":"LINK_HOST_UNAVAILABLE","message":"Hébergeur en maintenance"}}`, nil)
+	items, err := a.Resolve(context.Background(), "https://1fichier.com/?abc")
+	if err != nil || len(items) != 1 || items[0].Online || items[0].Error != "1fichier : Hébergeur en maintenance" {
+		t.Fatalf("err=%v items=%+v", err, items)
+	}
+}
+
+func TestAllDebridResolveDelayedWithoutWaiting(t *testing.T) {
+	a := adServer(t, infosOK, `{"status":"success","data":{"delayed":77}}`, nil,
+		map[string]http.HandlerFunc{"/v4/link/delayed": func(http.ResponseWriter, *http.Request) {
+			t.Error("l'analyse ne doit pas attendre la génération")
+		}})
+	items, err := a.Resolve(context.Background(), "https://1fichier.com/?abc")
+	if err != nil || !items[0].Online || items[0].Name != "Film.mkv" {
+		t.Fatalf("err=%v items=%+v", err, items)
+	}
+}
+
+func TestAllDebridResolveUnlockTransient(t *testing.T) {
+	a := adServer(t, infosOK, "", nil, map[string]http.HandlerFunc{"/v4/link/unlock": func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}})
+	var se *StatusError
+	if _, err := a.Resolve(context.Background(), "https://1fichier.com/?abc"); !errors.As(err, &se) {
+		t.Errorf("err = %v", err)
+	}
+}
