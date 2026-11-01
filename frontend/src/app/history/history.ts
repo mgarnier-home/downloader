@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { ApiService } from '../api/api.service';
 import { HistoryFilter, PackItem } from '../api/models';
 import { formatBytes, KIND_CLASS, packSummary } from '../format';
@@ -24,6 +24,12 @@ export class HistoryPage {
   protected readonly result = RESULT;
   protected readonly filter = signal<HistoryFilter>('all');
   protected readonly history = inject(ApiService).history(this.filter);
+
+  constructor() {
+    // Relu toutes les 10 s : la file ne dit pas ce qui vient de finir.
+    const timer = setInterval(() => this.history.reload(), 10_000);
+    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+  }
 
   /** « 31/10 14:02 » ; tiret quand la date est absente (0001-01-01). */
   protected when(iso: string): string {

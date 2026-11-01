@@ -1,5 +1,5 @@
-import { HistoryEntry, JobView, QueueFile, QueueView } from '../api/models';
-import { formatBytes, formatEta, formatSpeed, seasons } from '../format';
+import { JobView, QueueFile, QueueView } from '../api/models';
+import { formatBytes, formatEta, formatSpeed } from '../format';
 
 // speed : somme des fichiers, ne sert qu'à la durée restante de la file.
 export interface Summary { active: number; pending: number; errors: number; bytesLeft: number; speed: number }
@@ -60,25 +60,3 @@ export function commonPath(dests: string[]): string {
   return out.length ? out.join('/') + '/' : '';
 }
 
-export interface DoneGroup {
-  title: string; kind: HistoryEntry['kind']; count: number; at: Date; dest: string;
-  seasons: string; // saisons des packs du groupe, vide sinon
-}
-
-/** Rangés du jour (heure locale), regroupés par titre ; les dates nulles sont ignorées. */
-export function doneToday(rows: HistoryEntry[], now = new Date()): DoneGroup[] {
-  const groups = new Map<string, HistoryEntry[]>();
-  for (const r of rows) {
-    const at = new Date(r.finishedAt);
-    if (r.state !== 'done' || at.getFullYear() < 2000 || at.toDateString() !== now.toDateString()) continue;
-    const key = `${r.kind}|${r.title}`;
-    groups.set(key, [...(groups.get(key) ?? []), r]);
-  }
-  return [...groups.values()].map((g) => ({
-    title: g[0].title || g[0].name, kind: g[0].kind, count: g.length,
-    at: new Date(g[0].finishedAt),
-    // La destination d'un pack est un dossier : la barre finale le garde dans le chemin commun.
-    dest: commonPath(g.map((r) => (r.pack ? r.dest + '/' : r.dest))),
-    seasons: seasons(g.flatMap((r) => r.pack?.items ?? []).map((i) => i.dest)),
-  }));
-}
