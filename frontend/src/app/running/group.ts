@@ -3,7 +3,6 @@ import { formatBytes, formatEta, formatSpeed } from '../format';
 
 // speed : somme des fichiers, ne sert qu'à la durée restante de la file.
 export interface Summary { active: number; pending: number; errors: number; bytesLeft: number; speed: number }
-export interface Cell { label: string; state: 'done' | 'running' | 'pending' | 'error'; percent?: number }
 
 export const filePercent = (f: QueueFile): number =>
   f.state === 'done' ? 100 : f.total > 0 ? Math.min(100, Math.round((f.bytes / f.total) * 100)) : 0;
@@ -28,35 +27,20 @@ export function fileMeta(f: QueueFile): string {
   return `${done}${f.speed > 0 ? ' · ' + formatSpeed(f.speed) : ''}${eta ? ' · ' + eta : ''}`;
 }
 
-/** Origines distinctes des fichiers d'un job : « 1fichier.com, rapidgator.net ». */
-export const hosts = (job: JobView): string => [...new Set(job.files.map((f) => f.host).filter(Boolean))].join(', ');
-
 const base = (p: string) => p.slice(p.lastIndexOf('/') + 1);
 
-/** Une cellule par fichier, libellée `E01`… d'après la destination (sinon le nom du fichier). */
-export function episodeCells(job: JobView): Cell[] {
-  return job.files.map((f) => {
-    const label = /E(\d+)/i.exec(base(f.dest))?.[0].toUpperCase() ?? base(f.dest || f.name);
-    return f.state === 'running' ? { label, state: f.state, percent: filePercent(f) } : { label, state: f.state };
-  });
+/** Fichiers actifs puis en attente, chacun avec son job, dans l'ordre de la file. */
+export function activeFiles(jobs: JobView[]): { job: JobView; file: QueueFile }[] {
+  const rows = jobs.flatMap((job) =>
+    job.files.filter((f) => f.state === 'running' || f.state === 'pending').map((file) => ({ job, file })));
+  return rows.sort((a, b) => Number(b.file.state === 'running') - Number(a.file.state === 'running'));
 }
 
-/** Progression globale d'un job, en % des octets connus (les fichiers terminés comptent pour 100 %). */
-export function jobPercent(job: JobView): number {
-  const total = job.files.reduce((n, f) => n + f.total, 0);
-  if (total === 0) return Math.round((job.files.filter((f) => f.state === 'done').length / job.files.length) * 100) || 0;
-  const got = job.files.reduce((n, f) => n + (f.state === 'done' ? f.total : f.bytes), 0);
-  return Math.min(100, Math.round((got / total) * 100));
+/** Ce qui distingue un fichier dans son job : « S02 E03 », le dossier de saison d'un pack, le titre d'un morceau ; vide pour un film. */
+export function fileLabel(job: JobView, f: QueueFile): string {
+  const name = base(f.dest || f.name);
+  if (job.kind === 'music') return name.replace(/\.[^.]+$/, '');
+  if (job.kind !== 'series') return '';
+  // Un pack d'avant la v0.5.0 vise series/<Nom> : sa saison se lit dans le nom de l'archive.
+  return /S\d+\.E\d+/i.exec(name)?.[0].replace('.', ' ') ?? /\bS\d+\b/i.exec(name)?.[0] ?? /\bS\d+\b/i.exec(f.name)?.[0].toUpperCase() ?? name;
 }
-
-/** Dossier commun des destinations ; le chemin complet pour un fichier seul. */
-export function commonPath(dests: string[]): string {
-  const paths = dests.filter(Boolean);
-  if (paths.length === 0) return '';
-  if (paths.length === 1) return paths[0];
-  const dirs = paths.map((p) => p.slice(0, p.lastIndexOf('/') + 1).split('/').slice(0, -1));
-  const out: string[] = [];
-  for (let i = 0; i < dirs[0].length && dirs.every((d) => d[i] === dirs[0][i]); i++) out.push(dirs[0][i]);
-  return out.length ? out.join('/') + '/' : '';
-}
-

@@ -1,3 +1,4 @@
+.hist .mono{word-break:break-all}
 .items{margin:4px 0 0;padding-left:18px}
 @media (max-width:700px){
   .hist,.hist tbody,.hist tr,.hist td{display:block}

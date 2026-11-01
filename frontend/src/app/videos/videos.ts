@@ -5,7 +5,7 @@ import { apiError, formatBytes, KIND_CLASS, KIND_LABEL } from '../format';
 import { applyCard, EditableRow, recompose, toEditable, toRequests, withDest, workName } from './rows';
 
 interface Picker { key: string; q: string; tv: boolean; results: TMDBResult[]; busy: boolean; error: string }
-interface Group { key: string; title: string; idx: number[]; visible: number[]; hidden: number }
+interface Group { key: string; title: string; idx: number[] }
 
 const KINDS: { value: Kind; label: string }[] = [
   { value: 'series', label: 'Série' }, { value: 'movie', label: 'Film' }, { value: 'anime', label: 'Animé' },
@@ -29,7 +29,6 @@ export class VideosPage {
   protected readonly busy = signal(false);
   protected readonly launching = signal(false);
   protected readonly error = signal('');
-  protected readonly expanded = signal<Set<string>>(new Set());
   protected readonly editing = signal(-1);
   protected readonly picker = signal<Picker | null>(null);
 
@@ -38,19 +37,16 @@ export class VideosPage {
     return r.tmdb ? `t${r.tmdb.id}` : `n${workName(r.dest)}|${r.kind}`;
   }
 
-  /** Lignes regroupées par œuvre ; au-delà de deux lignes d'une série, le reste est replié. */
+  /** Lignes regroupées par œuvre, toutes visibles. */
   protected readonly groups = computed<Group[]>(() => {
     const map = new Map<string, Group>();
     this.rows().forEach((r, i) => {
       const key = VideosPage.key(r, i);
-      const g = map.get(key) ?? { key, title: r.tmdb?.title ?? workName(r.dest), idx: [], visible: [], hidden: 0 };
+      const g = map.get(key) ?? { key, title: r.tmdb?.title ?? workName(r.dest), idx: [] };
       g.idx.push(i);
       map.set(key, g);
     });
-    return [...map.values()].map((g) => {
-      const fold = this.rows()[g.idx[0]].kind === 'series' && g.idx.length > 2 && !this.expanded().has(g.key);
-      return { ...g, visible: fold ? g.idx.slice(0, 2) : g.idx, hidden: fold ? g.idx.length - 2 : 0 };
-    });
+    return [...map.values()];
   });
   protected readonly count = computed(() => toRequests(this.rows()).reduce((n, r) => n + r.files.length, 0));
   protected readonly summary = computed(() => {
@@ -70,7 +66,6 @@ export class VideosPage {
     this.error.set('');
     try {
       this.rows.set((await this.api.analyze(links)).map(toEditable));
-      this.expanded.set(new Set());
       this.picker.set(null);
     } catch (e) {
       this.error.set(apiError(e, "L'analyse a échoué."));
@@ -97,14 +92,6 @@ export class VideosPage {
     this.editing.set(-1);
     const r = this.rows()[i];
     this.patch(i, { ...withDest(r, dest.trim()), destEdited: true, checked: r.checked || (r.online && !r.exists && !r.dest && dest.trim() !== '') });
-  }
-
-  protected toggle(key: string) {
-    this.expanded.update((s) => {
-      const n = new Set(s);
-      if (!n.delete(key)) n.add(key);
-      return n;
-    });
   }
 
   protected openPicker(g: Group) {

@@ -1,11 +1,11 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../api/api.service';
-import { JobView, Kind, QueueFile } from '../api/models';
-import { apiError, formatBytes, formatEta, formatSpeed, KIND_CLASS, KIND_LABEL } from '../format';
+import { Kind, QueueFile } from '../api/models';
+import { apiError, formatBytes, formatEta, KIND_CLASS, KIND_LABEL } from '../format';
 import { HistoryPage } from '../history/history';
 import { VideosPage } from '../videos/videos';
-import { commonPath, episodeCells, fileMeta, filePercent, hosts, jobPercent, summarize } from './group';
+import { activeFiles, fileLabel, fileMeta, filePercent, summarize } from './group';
 
 const FILTERS: { label: string; kind: Kind | '' }[] = [
   { label: 'Tout', kind: '' }, { label: 'Séries', kind: 'series' }, { label: 'Films', kind: 'movie' },
@@ -25,10 +25,8 @@ export class RunningPage {
   protected readonly kindClass = KIND_CLASS;
   protected readonly formatBytes = formatBytes;
   protected readonly filePercent = filePercent;
-  protected readonly jobPercent = jobPercent;
-  protected readonly episodeCells = episodeCells;
-  protected readonly commonPath = commonPath;
-  protected readonly hosts = hosts;
+  protected readonly fileMeta = fileMeta;
+  protected readonly fileLabel = fileLabel;
 
   protected readonly queue = this.api.queue();
   protected readonly kind = signal<Kind | ''>('');
@@ -52,28 +50,7 @@ export class RunningPage {
   });
   protected readonly errors = computed(() =>
     this.jobs().flatMap((job) => job.files.filter((f) => f.state === 'error').map((file) => ({ job, file }))));
-  protected readonly running = computed(() =>
-    this.jobs().filter((j) => j.files.some((f) => f.state === 'running' || f.state === 'pending')));
-
-  protected count(job: JobView, state: QueueFile['state']) {
-    return job.files.filter((f) => f.state === state).length;
-  }
-
-  /** Texte de droite d'une ligne : épisodes actifs, titres rangés ou état du fichier unique. */
-  protected meta(job: JobView): string {
-    const running = job.files.filter((f) => f.state === 'running');
-    const pending = this.count(job, 'pending');
-    if (job.kind === 'music') return `${this.count(job, 'done')} / ${job.files.length} titres`;
-    if (job.files.length === 1) return fileMeta(job.files[0]);
-    const parts = running.map((f) =>
-      `${episodeCells({ ...job, files: [f] })[0].label} ${filePercent(f)} %${f.speed > 0 ? ` (${formatSpeed(f.speed)})` : ''}`);
-    if (pending) parts.push(`${pending} en attente`);
-    return parts.join(' · ');
-  }
-
-  protected idle(job: JobView) {
-    return !job.files.some((f) => f.state === 'running');
-  }
+  protected readonly running = computed(() => activeFiles(this.jobs()));
 
   protected async act(action: () => Promise<unknown>) {
     this.message.set('');

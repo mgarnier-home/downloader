@@ -26,7 +26,7 @@
           <thead><tr><th><span class="sr-only">Inclure</span></th><th>Fichier reçu</th><th>Taille</th><th>Lien</th><th>Fiche TMDB</th><th>Type</th><th>Destination</th></tr></thead>
           @for (g of groups(); track g.key) {
             <tbody>
-              @for (i of g.visible; track i) {
+              @for (i of g.idx; track i) {
                 @let r = rows()[i];
                 <tr [class.off]="!r.online">
                   <td class="chk"><input type="checkbox" [id]="'chk-' + i" [checked]="r.checked" [disabled]="!r.online || !r.dest"
@@ -50,7 +50,13 @@
                         @if (r.kind === '') { <option value="" selected>Non reconnu</option> }
                         @for (k of kinds; track k.value) { <option [value]="k.value" [selected]="r.kind === k.value">{{ k.label }}</option> }
                       </select>
-                      @if (r.pack) { <span class="tag serie">Pack</span> }
+                      @if (r.pack) {
+                        <span class="tag serie">Pack</span>
+                        <div class="ep">
+                          <label class="sr-only" [for]="'s-' + i">Saison du pack</label>
+                          <input [id]="'s-' + i" class="field num-in" type="number" min="1" placeholder="Saison" [value]="r.season" (change)="setNumber(i, 'season', $any($event.target).value)">
+                        </div>
+                      }
                       @else if (r.kind === 'series' && (r.needsReview || r.bonus || r.episode === 0)) {
                         <div class="ep">
                           <label class="sr-only" [for]="'mode-' + i">Épisode ou bonus</label>
@@ -81,15 +87,6 @@
                     </td>
                   }
                 </tr>
-              }
-              @if (g.hidden) {
-                <tr class="fold"><td></td><td colspan="6">
-                  <button type="button" class="btn small ghost" (click)="toggle(g.key)" [attr.aria-expanded]="false">Déplier {{ g.hidden }} {{ g.hidden > 1 ? 'lignes' : 'ligne' }} de plus</button>
-                </td></tr>
-              } @else if (g.idx.length > 2 && rows()[g.idx[0]].kind === 'series') {
-                <tr class="fold"><td></td><td colspan="6">
-                  <button type="button" class="btn small ghost" (click)="toggle(g.key)" [attr.aria-expanded]="true">Replier</button>
-                </td></tr>
               }
               @if (picker(); as p) {
                 @if (p.key === g.key) {

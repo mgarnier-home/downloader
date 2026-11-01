@@ -49,30 +49,19 @@
   }
 
   <section class="card" aria-labelledby="h-run">
-    <div class="card-h"><h2 id="h-run">En cours</h2><span class="muted">regroupés par œuvre ou album</span></div>
+    <div class="card-h"><h2 id="h-run">En cours</h2><span class="muted">actifs puis en attente</span></div>
     @if (queue.hasValue()) {
-      @for (j of running(); track j.id) {
-        <div class="qrow" [class.idle]="idle(j)">
-          <div class="t">{{ j.title }} <span [class]="'tag ' + kindClass[j.kind]">{{ kindLabel[j.kind] }}</span>
-            @if (hosts(j); as h) { <span class="muted light">{{ h }}</span> }
-            @if (j.files.length > 1 && j.kind !== 'music') {
-              <span class="muted num light">{{ count(j, 'done') }} / {{ j.files.length }} épisodes rangés</span>
-            }
+      @for (r of running(); track r.file.id) {
+        <div class="qrow" [class.idle]="r.file.state !== 'running'">
+          <div class="t">{{ r.job.title }}@if (fileLabel(r.job, r.file); as l) { <span class="num">· {{ l }}</span> }
+            <span [class]="'tag ' + kindClass[r.job.kind]">{{ kindLabel[r.job.kind] }}</span>
+            @if (r.file.host) { <span class="muted light">{{ r.file.host }}</span> }
           </div>
-          <div class="m num">{{ meta(j) }}</div>
+          <div class="m num">{{ fileMeta(r.file) }}</div>
           <div class="s">
-            <div class="bar" role="progressbar" [attr.aria-label]="'Progression de ' + j.title"
-                 aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="jobPercent(j)"><i [style.width.%]="jobPercent(j)"></i></div>
-            @if (j.files.length > 1 && j.kind !== 'music') {
-              <ul class="cells" [attr.aria-label]="'État des ' + j.files.length + ' épisodes'">
-                @for (c of episodeCells(j); track $index) {
-                  <li class="tag" [class]="'tag ' + c.state">{{ c.label }}@switch (c.state) {
-                    @case ('done') { ✓ } @case ('running') { {{ c.percent }} % } @case ('error') { ✗ }
-                  }</li>
-                }
-              </ul>
-            }
-            <span class="path">{{ commonPath(j.files.map(f => f.dest)) }}</span>
+            <div class="bar" role="progressbar" [attr.aria-label]="'Progression de ' + (r.file.dest || r.file.name)"
+                 aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="filePercent(r.file)"><i [style.width.%]="filePercent(r.file)"></i></div>
+            <span class="path">{{ r.file.dest || r.file.name }}</span>
           </div>
         </div>
       } @empty {
